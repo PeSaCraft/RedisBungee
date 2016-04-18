@@ -38,13 +38,9 @@ public class RedisUtil {
     }
 
     public static void cleanUpPlayer(String player, Jedis rsc) {
-        rsc.srem("proxy:" + RedisBungee.getApi().getServerId() + ":usersOnline", player);
-        rsc.hdel("player:" + player, "server",  "ip", "proxy");
-        long timestamp = System.currentTimeMillis();
-        rsc.hset("player:" + player, "online", String.valueOf(timestamp));
-        rsc.publish("redisbungee-data", RedisBungee.getGson().toJson(new DataManager.DataManagerMessage<>(
-                UUID.fromString(player), DataManager.DataManagerMessage.Action.LEAVE,
-                new DataManager.LogoutPayload(timestamp))));
+    	Pipeline pipe = rsc.pipelined();
+    	cleanUpPlayer(player, pipe);
+    	pipe.sync();
     }
 
     public static void cleanUpPlayer(String player, Pipeline rsc) {
