@@ -3,6 +3,9 @@ package com.imaginarycode.minecraft.redisbungee;
 import com.google.common.annotations.VisibleForTesting;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
+import net.md_5.bungee.api.ProxyServer;
+import net.md_5.bungee.api.config.LobbyGameCategoryInfo;
+import net.md_5.bungee.api.config.ServerInfo;
 import net.md_5.bungee.api.connection.PendingConnection;
 import net.md_5.bungee.api.connection.ProxiedPlayer;
 import redis.clients.jedis.Jedis;
@@ -17,8 +20,30 @@ import java.util.UUID;
 public class RedisUtil {
     protected static void createPlayer(ProxiedPlayer player, Pipeline pipeline, boolean fireEvent) {
         createPlayer(player.getPendingConnection(), pipeline, fireEvent);
-        if (player.getServer() != null)
-            pipeline.hset("player:" + player.getUniqueId().toString(), "server", player.getServer().getInfo().getName());
+        if (player.getServer() != null) {
+        	String uuid = player.getUniqueId().toString();
+        	ServerInfo server = player.getServer().getInfo();
+        	String serverName = server.getName();
+        	String categoryKey = "category:" + server.getCategory().getName();
+        	
+            pipeline.hset("player:" + uuid, "server", serverName);
+            pipeline.sadd("server:" + serverName + ":usersOnline", uuid);
+            pipeline.sadd(categoryKey + ":usersOnline", uuid);
+            int players;
+            switch (server.getServerType()) {
+			case DIRECT: case LOBBY:
+				players = pipeline.zincrby(categoryKey + ":servers", 1, serverName).get().intValue();
+				server.getCategory().putServer(server, players);
+				break;
+			case GAME:
+				String map = server.getMap();
+				players = pipeline.zincrby(categoryKey + ":map:" + map, 1, serverName).get().intValue();
+				((LobbyGameCategoryInfo) server.getCategory()).putGameServer(server.getMap(), server, players);
+				break;
+			default:
+				break;
+            }
+        }
     }
 
     protected static void createPlayer(PendingConnection connection, Pipeline pipeline, boolean fireEvent) {
@@ -38,14 +63,25 @@ public class RedisUtil {
     }
 
     public static void cleanUpPlayer(String player, Jedis rsc) {
-    	Pipeline pipe = rsc.pipelined();
-    	cleanUpPlayer(player, pipe);
-    	pipe.sync();
-    }
-
-    public static void cleanUpPlayer(String player, Pipeline rsc) {
-        rsc.srem("proxy:" + RedisBungee.getApi().getServerId() + ":usersOnline", player);
+    	rsc.srem("proxy:" + RedisBungee.getApi().getServerId() + ":usersOnline", player);
+        ServerInfo server = ProxyServer.getInstance().getServerInfo(rsc.hget("player:" + player, "server"));
+        rsc.srem("server:" + server.getName() + ":usersOnline", player);
+        rsc.srem("category:" + server.getCategory().getName() + ":usersOnline", player);
         rsc.hdel("player:" + player, "server", "ip", "proxy");
+        int players;
+        switch (server.getServerType()) {
+		case DIRECT: case LOBBY:
+			players = rsc.zincrby("category:" + server.getCategory().getName() + ":servers", -1, server.getName()).intValue();
+			server.getCategory().putServer(server, players);
+			break;
+		case GAME:
+			String map = server.getMap();
+			players = rsc.zincrby("category:" + server.getCategory().getName() + ":map:" + map, 1, server.getName()).intValue();
+			((LobbyGameCategoryInfo) server.getCategory()).putGameServer(server.getMap(), server, players);
+			break;
+		default:
+			break;
+        }
         long timestamp = System.currentTimeMillis();
         rsc.hset("player:" + player, "online", String.valueOf(timestamp));
         rsc.publish("redisbungee-data", RedisBungee.getGson().toJson(new DataManager.DataManagerMessage<>(

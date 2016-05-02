@@ -64,10 +64,8 @@ public final class RedisBungee extends Plugin {
     private ScheduledTask integrityCheck;
     private ScheduledTask heartbeatTask;
     private boolean usingLua;
-    private LuaManager.Script serverToPlayersScript;
     private LuaManager.Script getPlayerCountScript;
-    private LuaManager.Script getServerPlayersScript;
-
+    
     private static final Object SERVER_TO_PLAYERS_KEY = new Object();
     private final Cache<Object, Multimap<String, UUID>> serverToPlayersCache = CacheBuilder.newBuilder()
             .expireAfterWrite(5, TimeUnit.SECONDS)
@@ -137,20 +135,14 @@ public final class RedisBungee extends Plugin {
             return serverToPlayersCache.get(SERVER_TO_PLAYERS_KEY, new Callable<Multimap<String, UUID>>() {
                 @Override
                 public Multimap<String, UUID> call() throws Exception {
-                    Collection<String> data = (Collection<String>) serverToPlayersScript.eval(ImmutableList.<String>of(), getServerIds());
-
-                    ImmutableMultimap.Builder<String, UUID> builder = ImmutableMultimap.builder();
-                    String key = null;
-                    for (String s : data) {
-                        if (key == null) {
-                            key = s;
-                            continue;
-                        }
-
-                        builder.put(key, UUID.fromString(s));
-                        key = null;
-                    }
-
+                	ImmutableMultimap.Builder<String, UUID> builder = ImmutableMultimap.builder();
+                    try (Jedis jedis = pool.getResource()) {
+                		for (String server : getProxy().getServers().keySet()) {
+                			for (String uuid : jedis.smembers("server:" + server + ":usersOnline")) {
+                				builder.put(server, UUID.fromString(uuid));
+                			}
+                		}
+                	}
                     return builder.build();
                 }
             });
@@ -206,12 +198,16 @@ public final class RedisBungee extends Plugin {
 
     final Set<UUID> getPlayersOnServer(@NonNull String server) {
         checkArgument(getProxy().getServers().containsKey(server), "server does not exist");
-        Collection<String> asStrings = (Collection<String>) getServerPlayersScript.eval(ImmutableList.<String>of(), ImmutableList.<String>of(server));
-        ImmutableSet.Builder<UUID> builder = ImmutableSet.builder();
-        for (String s : asStrings) {
-            builder.add(UUID.fromString(s));
+        
+        try (Jedis jedis = pool.getResource()) {
+        	Collection<String> asStrings = jedis.smembers("server:" + server + ":usersOnline");
+        	
+        	ImmutableSet.Builder<UUID> builder = ImmutableSet.builder();
+            for (String s : asStrings) {
+                builder.add(UUID.fromString(s));
+            }
+            return builder.build();
         }
-        return builder.build();
     }
 
     final void sendProxyCommand(@NonNull String proxyId, @NonNull String command) {
@@ -254,9 +250,7 @@ public final class RedisBungee extends Plugin {
                             throw new RuntimeException("Unsupported Redis version detected");
                         } else {
                             LuaManager manager = new LuaManager(this);
-                            serverToPlayersScript = manager.createScript(IOUtil.readInputStreamAsString(getResourceAsStream("lua/server_to_players.lua")));
                             getPlayerCountScript = manager.createScript(IOUtil.readInputStreamAsString(getResourceAsStream("lua/get_player_count.lua")));
-                            getServerPlayersScript = manager.createScript(IOUtil.readInputStreamAsString(getResourceAsStream("lua/get_server_players.lua")));
                         }
                         break;
                     }

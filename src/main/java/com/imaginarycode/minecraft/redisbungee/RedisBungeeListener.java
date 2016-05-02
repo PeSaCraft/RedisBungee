@@ -2,7 +2,6 @@ package com.imaginarycode.minecraft.redisbungee;
 
 import com.google.common.base.Joiner;
 import com.google.common.collect.HashMultimap;
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.Multiset;
 import com.google.common.io.ByteArrayDataInput;
@@ -13,11 +12,11 @@ import com.imaginarycode.minecraft.redisbungee.util.RedisCallable;
 import lombok.AllArgsConstructor;
 import net.md_5.bungee.api.AbstractReconnectHandler;
 import net.md_5.bungee.api.ChatColor;
-import net.md_5.bungee.api.ProxyServer;
-import net.md_5.bungee.api.ServerPing;
 import net.md_5.bungee.api.chat.BaseComponent;
 import net.md_5.bungee.api.chat.ComponentBuilder;
 import net.md_5.bungee.api.chat.TextComponent;
+import net.md_5.bungee.api.config.CategoryInfo;
+import net.md_5.bungee.api.config.LobbyGameCategoryInfo;
 import net.md_5.bungee.api.config.ServerInfo;
 import net.md_5.bungee.api.connection.ProxiedPlayer;
 import net.md_5.bungee.api.connection.Server;
@@ -111,9 +110,7 @@ public class RedisBungeeListener implements Listener {
         plugin.getProxy().getScheduler().runAsync(plugin, new RedisCallable<Void>(plugin) {
             @Override
             protected Void call(Jedis jedis) {
-                Pipeline pipeline = jedis.pipelined();
-                RedisUtil.cleanUpPlayer(event.getPlayer().getUniqueId().toString(), pipeline);
-                pipeline.sync();
+                RedisUtil.cleanUpPlayer(event.getPlayer().getUniqueId().toString(), jedis);
                 return null;
             }
         });
@@ -121,17 +118,95 @@ public class RedisBungeeListener implements Listener {
 
     @EventHandler
     public void onServerChange(final ServerConnectedEvent event) {
-        final String currentServer = event.getPlayer().getServer() == null ? null : event.getPlayer().getServer().getInfo().getName();
-        plugin.getProxy().getScheduler().runAsync(plugin, new RedisCallable<Void>(plugin) {
-            @Override
-            protected Void call(Jedis jedis) {
-                jedis.hset("player:" + event.getPlayer().getUniqueId().toString(), "server", event.getServer().getInfo().getName());
-                jedis.publish("redisbungee-data", RedisBungee.getGson().toJson(new DataManager.DataManagerMessage<>(
-                        event.getPlayer().getUniqueId(), DataManager.DataManagerMessage.Action.SERVER_CHANGE,
-                        new DataManager.ServerChangePayload(event.getServer().getInfo().getName(), currentServer))));
-                return null;
-            }
-        });
+    	final ServerInfo currentServer = event.getPlayer().getServer() == null ? null : event.getPlayer().getServer().getInfo();
+    	final ServerInfo newServer = event.getServer().getInfo();
+    	
+    	if (currentServer == null) {
+    		// joining network
+    		final String newServerName = newServer.getName();
+            final String uuid = event.getPlayer().getUniqueId().toString();
+            
+            plugin.getProxy().getScheduler().runAsync(plugin, new RedisCallable<Void>(plugin) {
+                @Override
+                protected Void call(Jedis jedis) {
+                	jedis.hset("player:" + uuid, "server", newServerName);
+                	jedis.sadd("server:" + newServerName + ":usersOnline", uuid);
+                    
+                    jedis.sadd("category:" + newServer.getCategory().getName() + ":usersOnline", uuid);
+                    
+                    int players;
+                    switch (newServer.getServerType()) {
+        			case DIRECT: case LOBBY:
+        				players = jedis.zincrby("category:" + newServer.getCategory().getName() + ":servers", 1, newServerName).intValue();
+        				newServer.getCategory().putServer(newServer, players);
+        				break;
+        			case GAME:
+        				String map = newServer.getMap();
+        				players = jedis.zincrby("category:" + newServer.getCategory().getName() + ":map:" + map, 1, newServerName).intValue();
+        				((LobbyGameCategoryInfo) newServer.getCategory()).putGameServer(newServer.getMap(), newServer, players);
+        				break;
+        			default:
+        				break;
+                    }
+                	jedis.publish("redisbungee-data", RedisBungee.getGson().toJson(new DataManager.DataManagerMessage<>(
+                            event.getPlayer().getUniqueId(), DataManager.DataManagerMessage.Action.SERVER_CHANGE,
+                            new DataManager.ServerChangePayload(newServerName, null))));
+                    return null;
+                }
+            });
+    	}
+    	else {
+    		// switching server
+    		final String currentServerName = currentServer.getName();
+        	final String newServerName = newServer.getName();
+            final String uuid = event.getPlayer().getUniqueId().toString();
+            
+            plugin.getProxy().getScheduler().runAsync(plugin, new RedisCallable<Void>(plugin) {
+                @Override
+                protected Void call(Jedis jedis) {
+                	jedis.hset("player:" + uuid, "server", newServerName);
+                	jedis.srem("server:" + currentServerName + ":usersOnline", uuid);
+                    jedis.sadd("server:" + newServerName + ":usersOnline", uuid);
+                    
+                    if (newServer.getCategory() != currentServer.getCategory()) {
+                    	jedis.srem("category:" + currentServer.getCategory().getName() + ":usersOnline", uuid);
+                    	jedis.sadd("category:" + newServer.getCategory().getName() + ":usersOnline", uuid);
+                    }
+                    
+                    int players;
+                    switch (currentServer.getServerType()) {
+        			case DIRECT: case LOBBY:
+        				players = jedis.zincrby("category:" + currentServer.getCategory().getName() + ":servers", -1, currentServerName).intValue();
+        				currentServer.getCategory().putServer(currentServer, players);
+        				break;
+        			case GAME:
+        				String map = currentServer.getMap();
+        				players = jedis.zincrby("category:" + currentServer.getCategory().getName() + ":map:" + map, -1, currentServerName).intValue();
+        				((LobbyGameCategoryInfo) currentServer.getCategory()).putGameServer(currentServer.getMap(), currentServer, players);
+        				break;
+        			default:
+        				break;
+                    }
+                    switch (newServer.getServerType()) {
+        			case DIRECT: case LOBBY:
+        				players = jedis.zincrby("category:" + newServer.getCategory().getName() + ":servers", 1, newServerName).intValue();
+        				newServer.getCategory().putServer(newServer, players);
+        				break;
+        			case GAME:
+        				String map = newServer.getMap();
+        				players = jedis.zincrby("category:" + newServer.getCategory().getName() + ":map:" + map, 1, newServerName).intValue();
+        				((LobbyGameCategoryInfo) newServer.getCategory()).putGameServer(newServer.getMap(), newServer, players);
+        				break;
+        			default:
+        				break;
+                    }
+                	jedis.publish("redisbungee-data", RedisBungee.getGson().toJson(new DataManager.DataManagerMessage<>(
+                            event.getPlayer().getUniqueId(), DataManager.DataManagerMessage.Action.SERVER_CHANGE,
+                            new DataManager.ServerChangePayload(newServerName, currentServerName))));
+                    return null;
+                }
+            });
+    	}
     }
 
     @EventHandler(priority = EventPriority.LOWEST)
@@ -140,7 +215,7 @@ public class RedisBungeeListener implements Listener {
             return;
         }
 
-        ServerInfo forced = AbstractReconnectHandler.getForcedHost(event.getConnection());
+        CategoryInfo forced = AbstractReconnectHandler.getForcedHost(event.getConnection());
 
         if (forced != null && event.getConnection().getListener().isPingPassthrough()) {
             return;
