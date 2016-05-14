@@ -51,6 +51,7 @@ public class RedisUtil {
         playerData.put("online", "0");
         playerData.put("ip", connection.getAddress().getAddress().getHostAddress());
         playerData.put("proxy", RedisBungee.getConfiguration().getServerId());
+        playerData.put("name", connection.getName());
 
         pipeline.sadd("proxy:" + RedisBungee.getApi().getServerId() + ":usersOnline", connection.getUniqueId().toString());
         pipeline.hmset("player:" + connection.getUniqueId().toString(), playerData);
@@ -64,23 +65,25 @@ public class RedisUtil {
 
     public static void cleanUpPlayer(String player, Jedis rsc) {
     	rsc.srem("proxy:" + RedisBungee.getApi().getServerId() + ":usersOnline", player);
+    	rsc.hdel("player:" + player, "server", "ip", "proxy");
         ServerInfo server = ProxyServer.getInstance().getServerInfo(rsc.hget("player:" + player, "server"));
-        rsc.srem("server:" + server.getName() + ":usersOnline", player);
-        rsc.srem("category:" + server.getCategory().getName() + ":usersOnline", player);
-        rsc.hdel("player:" + player, "server", "ip", "proxy");
-        int players;
-        switch (server.getServerType()) {
-		case DIRECT: case LOBBY:
-			players = rsc.zincrby("category:" + server.getCategory().getName() + ":servers", -1, server.getName()).intValue();
-			server.getCategory().putServer(server, players);
-			break;
-		case GAME:
-			String map = server.getMap();
-			players = rsc.zincrby("category:" + server.getCategory().getName() + ":map:" + map, 1, server.getName()).intValue();
-			((LobbyGameCategoryInfo) server.getCategory()).putGameServer(server.getMap(), server, players);
-			break;
-		default:
-			break;
+        if (server != null) {
+        	rsc.srem("server:" + server.getName() + ":usersOnline", player);
+	        rsc.srem("category:" + server.getCategory().getName() + ":usersOnline", player);
+	        int players;
+	        switch (server.getServerType()) {
+			case DIRECT: case LOBBY:
+				players = rsc.zincrby("category:" + server.getCategory().getName() + ":servers", -1, server.getName()).intValue();
+				server.getCategory().putServer(server, players);
+				break;
+			case GAME:
+				String map = server.getMap();
+				players = rsc.zincrby("category:" + server.getCategory().getName() + ":map:" + map, -1, server.getName()).intValue();
+				((LobbyGameCategoryInfo) server.getCategory()).putGameServer(server.getMap(), server, players);
+				break;
+			default:
+				break;
+	        }
         }
         long timestamp = System.currentTimeMillis();
         rsc.hset("player:" + player, "online", String.valueOf(timestamp));
