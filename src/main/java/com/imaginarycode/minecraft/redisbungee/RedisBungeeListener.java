@@ -51,43 +51,43 @@ public class RedisBungeeListener implements Listener {
         plugin.getProxy().getScheduler().runAsync(plugin, new RedisCallable<Void>(plugin) {
             @Override
             protected Void call(Jedis jedis) {
-                if (event.isCancelled()) {
-                    event.completeIntent(plugin);
+                try {
+                    if (event.isCancelled()) {
+                        return null;
+                    }
+
+                    // We make sure they aren't trying to use an existing player's name.
+                    // This is problematic for online-mode servers as they always disconnect old clients.
+                    if (plugin.getProxy().getConfig().isOnlineMode()) {
+                        ProxiedPlayer player = plugin.getProxy().getPlayer(event.getConnection().getName());
+
+                        if (player != null) {
+                            event.setCancelled(true);
+                            // TODO: Make it accept a BaseComponent[] like everything else.
+                            event.setCancelReason(TextComponent.toLegacyText(ONLINE_MODE_RECONNECT));
+                            return null;
+                        }
+                    }
+
+                    for (String s : plugin.getServerIds()) {
+                        if (jedis.sismember("proxy:" + s + ":usersOnline", event.getConnection().getUniqueId().toString())) {
+                            event.setCancelled(true);
+                            // TODO: Make it accept a BaseComponent[] like everything else.
+                            event.setCancelReason(TextComponent.toLegacyText(ALREADY_LOGGED_IN));
+                            return null;
+                        }
+                    }
+
+                    Pipeline pipeline = jedis.pipelined();
+                    plugin.getUuidTranslator().persistInfo(event.getConnection().getName(), event.getConnection().getUniqueId(), pipeline);
+                    RedisUtil.createPlayer(event.getConnection(), pipeline, false);
+                    // We're not publishing, the API says we only publish at PostLoginEvent time.
+                    pipeline.sync();
+
                     return null;
+                } finally {
+                    event.completeIntent(plugin);
                 }
-
-                // We make sure they aren't trying to use an existing player's name.
-                // This is problematic for online-mode servers as they always disconnect old clients.
-                if (plugin.getProxy().getConfig().isOnlineMode()) {
-                    ProxiedPlayer player = plugin.getProxy().getPlayer(event.getConnection().getName());
-
-                    if (player != null) {
-                        event.setCancelled(true);
-                        // TODO: Make it accept a BaseComponent[] like everything else.
-                        event.setCancelReason(TextComponent.toLegacyText(ONLINE_MODE_RECONNECT));
-                        event.completeIntent(plugin);
-                        return null;
-                    }
-                }
-
-                for (String s : plugin.getServerIds()) {
-                    if (jedis.sismember("proxy:" + s + ":usersOnline", event.getConnection().getUniqueId().toString())) {
-                        event.setCancelled(true);
-                        // TODO: Make it accept a BaseComponent[] like everything else.
-                        event.setCancelReason(TextComponent.toLegacyText(ALREADY_LOGGED_IN));
-                        event.completeIntent(plugin);
-                        return null;
-                    }
-                }
-
-                Pipeline pipeline = jedis.pipelined();
-                plugin.getUuidTranslator().persistInfo(event.getConnection().getName(), event.getConnection().getUniqueId(), pipeline);
-                RedisUtil.createPlayer(event.getConnection(), pipeline, false);
-                // We're not publishing, the API says we only publish at PostLoginEvent time.
-                pipeline.sync();
-
-                event.completeIntent(plugin);
-                return null;
             }
         });
     }
@@ -247,7 +247,7 @@ public class RedisBungeeListener implements Listener {
                                 original = plugin.getPlayers();
                             } else {
                                 try {
-                                    original = plugin.getPlayersOnServer(type);
+                                    original = RedisBungee.getApi().getPlayersOnServer(type);
                                 } catch (IllegalArgumentException ignored) {
                                 }
                             }
@@ -265,7 +265,7 @@ public class RedisBungeeListener implements Listener {
                             } else {
                                 out.writeUTF(type);
                                 try {
-                                    out.writeInt(plugin.getPlayersOnServer(type).size());
+                                    out.writeInt(RedisBungee.getApi().getPlayersOnServer(type).size());
                                 } catch (IllegalArgumentException e) {
                                     out.writeInt(0);
                                 }

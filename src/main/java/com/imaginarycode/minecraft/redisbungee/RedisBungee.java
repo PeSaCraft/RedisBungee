@@ -27,11 +27,9 @@ import redis.clients.jedis.*;
 import redis.clients.jedis.exceptions.JedisConnectionException;
 
 import java.io.*;
+import java.lang.reflect.Field;
 import java.util.*;
-import java.util.concurrent.Callable;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.FutureTask;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Level;
 
@@ -61,11 +59,11 @@ public final class RedisBungee extends Plugin {
     private volatile List<String> serverIds;
     private final AtomicInteger nagAboutServers = new AtomicInteger();
     private final AtomicInteger globalPlayerCount = new AtomicInteger();
-    private ScheduledTask integrityCheck;
-    private ScheduledTask heartbeatTask;
+    private Future<?> integrityCheck;
+    private Future<?> heartbeatTask;
     private boolean usingLua;
     private LuaManager.Script getPlayerCountScript;
-    
+
     private static final Object SERVER_TO_PLAYERS_KEY = new Object();
     private final Cache<Object, Multimap<String, UUID>> serverToPlayersCache = CacheBuilder.newBuilder()
             .expireAfterWrite(5, TimeUnit.SECONDS)
@@ -198,10 +196,10 @@ public final class RedisBungee extends Plugin {
 
     final Set<UUID> getPlayersOnServer(@NonNull String server) {
         checkArgument(getProxy().getServers().containsKey(server), "server does not exist");
-        
+
         try (Jedis jedis = pool.getResource()) {
         	Collection<String> asStrings = jedis.smembers("server:" + server + ":usersOnline");
-        	
+
         	ImmutableSet.Builder<UUID> builder = ImmutableSet.builder();
             for (String s : asStrings) {
                 builder.add(UUID.fromString(s));
@@ -231,6 +229,16 @@ public final class RedisBungee extends Plugin {
 
     @Override
     public void onEnable() {
+        ThreadFactory factory = ((ThreadPoolExecutor) getExecutorService()).getThreadFactory();
+        getExecutorService().shutdownNow();
+        ScheduledExecutorService service;
+        try {
+            Field field = Plugin.class.getDeclaredField("service");
+            field.setAccessible(true);
+            field.set(this, service = Executors.newScheduledThreadPool(24, factory));
+        } catch (Exception e) {
+            throw new RuntimeException("Can't replace BungeeCord thread pool with our own", e);
+        }
         try {
             loadConfig();
         } catch (IOException e) {
@@ -265,7 +273,7 @@ public final class RedisBungee extends Plugin {
             }
             serverIds = getCurrentServerIds(true, false);
             uuidTranslator = new UUIDTranslator(this);
-            heartbeatTask = getProxy().getScheduler().schedule(this, new Runnable() {
+            heartbeatTask = service.scheduleAtFixedRate(new Runnable() {
                 @Override
                 public void run() {
                     try (Jedis rsc = pool.getResource()) {
@@ -274,9 +282,14 @@ public final class RedisBungee extends Plugin {
                     } catch (JedisConnectionException e) {
                         // Redis server has disappeared!
                         getLogger().log(Level.SEVERE, "Unable to update heartbeat - did your Redis server go away?", e);
+                        return;
                     }
-                    serverIds = getCurrentServerIds(true, false);
-                    globalPlayerCount.set(getCurrentCount());
+                    try {
+                        serverIds = getCurrentServerIds(true, false);
+                        globalPlayerCount.set(getCurrentCount());
+                    } catch (Throwable e) {
+                        getLogger().log(Level.SEVERE, "Unable to update data - did your Redis server go away?", e);
+                    }
                 }
             }, 0, 3, TimeUnit.SECONDS);
             dataManager = new DataManager(this);
@@ -297,7 +310,7 @@ public final class RedisBungee extends Plugin {
             getProxy().getPluginManager().registerListener(this, dataManager);
             psl = new PubSubListener();
             getProxy().getScheduler().runAsync(this, psl);
-            integrityCheck = getProxy().getScheduler().schedule(this, new Runnable() {
+            integrityCheck = service.scheduleAtFixedRate(new Runnable() {
                 @Override
                 public void run() {
                     try (Jedis tmpRsc = pool.getResource()) {
@@ -355,6 +368,8 @@ public final class RedisBungee extends Plugin {
                         }
 
                         pipeline.sync();
+                    } catch (Throwable e) {
+                        getLogger().log(Level.SEVERE, "Unable to fix up stored player data", e);
                     }
                 }
             }, 0, 1, TimeUnit.MINUTES);
@@ -367,9 +382,8 @@ public final class RedisBungee extends Plugin {
         if (pool != null) {
             // Poison the PubSub listener
             psl.poison();
-            getProxy().getScheduler().cancel(this);
-            integrityCheck.cancel();
-            heartbeatTask.cancel();
+            integrityCheck.cancel(true);
+            heartbeatTask.cancel(true);
             getProxy().getPluginManager().unregisterListeners(this);
 
             try (Jedis tmpRsc = pool.getResource()) {
@@ -421,19 +435,10 @@ public final class RedisBungee extends Plugin {
             FutureTask<JedisPool> task = new FutureTask<>(new Callable<JedisPool>() {
                 @Override
                 public JedisPool call() throws Exception {
-                    // With recent versions of Jedis, we must set the classloader to the one BungeeCord used
-                    // to load RedisBungee with.
-                    ClassLoader previous = Thread.currentThread().getContextClassLoader();
-                    Thread.currentThread().setContextClassLoader(RedisBungee.class.getClassLoader());
-
                     // Create the pool...
                     JedisPoolConfig config = new JedisPoolConfig();
                     config.setMaxTotal(configuration.getInt("max-redis-connections", 8));
-                    JedisPool pool = new JedisPool(config, redisServer, redisPort, 0, finalRedisPassword);
-
-                    // Reset classloader and return the pool
-                    Thread.currentThread().setContextClassLoader(previous);
-                    return pool;
+                    return new JedisPool(config, redisServer, redisPort, 0, finalRedisPassword);
                 }
             });
 
