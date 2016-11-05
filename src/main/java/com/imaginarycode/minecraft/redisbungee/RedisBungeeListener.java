@@ -94,7 +94,7 @@ public class RedisBungeeListener implements Listener {
 
     @EventHandler
     public void onPostLogin(final PostLoginEvent event) {
-        plugin.getProxy().getScheduler().runAsync(plugin, new RedisCallable<Void>(plugin) {
+    	plugin.getProxy().getScheduler().runAsync(plugin, new RedisCallable<Void>(plugin) {
             @Override
             protected Void call(Jedis jedis) {
                 jedis.publish("redisbungee-data", RedisBungee.getGson().toJson(new DataManager.DataManagerMessage<>(

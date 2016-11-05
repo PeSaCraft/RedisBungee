@@ -15,22 +15,22 @@
     <repositories>
         <repository>
             <id>pesacraft-releases</id>
-            <url>http://pesacraft.de:8081/nexus/content/repositories/releases/</url>
+            <url>https://repo.pesacraft.de/content/repositories/releases/</url>
         </repository>
         <repository>
             <id>pesacraft-snapshots</id>
-            <url>http://pesacraft.de:8081/nexus/content/repositories/snapshots/</url>
+            <url>https://repo.pesacraft.de/content/repositories/snapshots/</url>
         </repository>
     </repositories>
     
     <distributionManagement>
         <repository>
             <id>pesacraft-releases</id>
-            <url>http://pesacraft.de:8081/nexus/content/repositories/releases/</url>
+            <url>https://repo.pesacraft.de/content/repositories/releases/</url>
         </repository>
         <snapshotRepository>
             <id>pesacraft-snapshots</id>
-            <url>http://pesacraft.de:8081/nexus/content/repositories/snapshots/</url>
+            <url>https://repo.pesacraft.de/content/repositories/snapshots/</url>
         </snapshotRepository>
     </distributionManagement>
 
