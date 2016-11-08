@@ -1,63 +1,81 @@
 package com.imaginarycode.minecraft.redisbungee.util.uuid;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.net.MediaType;
 import com.imaginarycode.minecraft.redisbungee.RedisBungeeCore;
-import com.squareup.okhttp.*;
 import lombok.Setter;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.Callable;
 
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.client.HttpComponentsClientHttpRequestFactory;
+import org.springframework.http.converter.FormHttpMessageConverter;
+import org.springframework.http.converter.HttpMessageConverter;
+import org.springframework.http.converter.StringHttpMessageConverter;
+import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
+import org.springframework.stereotype.Component;
+import org.springframework.web.client.RestTemplate;
+
 /* Credits to evilmidget38 for this class. I modified it to use Gson. */
-public class UUIDFetcher implements Callable<Map<String, UUID>> {
-    private static final double PROFILES_PER_REQUEST = 100;
-    private static final String PROFILE_URL = "https://api.mojang.com/profiles/minecraft";
-    private static final MediaType JSON = MediaType.parse("application/json");
-    private final List<String> names;
-    private final boolean rateLimiting;
+@Component
+public class UUIDFetcher {
+	private static final double PROFILES_PER_REQUEST = 100;
+	private static final String PROFILE_URL = "https://api.mojang.com/profiles/minecraft";
+	private static final MediaType JSON = MediaType.parse("application/json");
 
-    @Setter
-    private static OkHttpClient httpClient;
+	private final RestTemplate restTemplate = new RestTemplate(new HttpComponentsClientHttpRequestFactory());
 
-    private UUIDFetcher(List<String> names, boolean rateLimiting) {
-        this.names = ImmutableList.copyOf(names);
-        this.rateLimiting = rateLimiting;
-    }
+	@Autowired
+	private UUIDTranslator uuidTranslator;
 
-    public UUIDFetcher(List<String> names) {
-        this(names, true);
-    }
+	public Map<String, UUID> getUUIDs(List<String> names, boolean rateLimiting) {
+		RestTemplate restTemplate = new RestTemplate();
 
-    public static UUID getUUID(String id) {
-        return UUID.fromString(id.substring(0, 8) + "-" + id.substring(8, 12) + "-" + id.substring(12, 16) + "-" + id.substring(16, 20) + "-" + id.substring(20, 32));
-    }
+		List<HttpMessageConverter<?>> messageConverters = new ArrayList<>();
+		messageConverters.add(new FormHttpMessageConverter());
+		messageConverters.add(new StringHttpMessageConverter());
+		messageConverters.add(new MappingJackson2HttpMessageConverter());
+		restTemplate.setMessageConverters(messageConverters);
 
-    public Map<String, UUID> call() throws Exception {
-        Map<String, UUID> uuidMap = new HashMap<>();
-        int requests = (int) Math.ceil(names.size() / PROFILES_PER_REQUEST);
-        for (int i = 0; i < requests; i++) {
-            String body = RedisBungeeCore.getGson().toJson(names.subList(i * 100, Math.min((i + 1) * 100, names.size())));
-            Request request = new Request.Builder().url(PROFILE_URL).post(RequestBody.create(JSON, body)).build();
-            ResponseBody responseBody = httpClient.newCall(request).execute().body();
-            String response = responseBody.string();
-            responseBody.close();
-            Profile[] array = RedisBungeeCore.getGson().fromJson(response, Profile[].class);
-            for (Profile profile : array) {
-                UUID uuid = UUIDFetcher.getUUID(profile.id);
-                uuidMap.put(profile.name, uuid);
-            }
-            if (rateLimiting && i != requests - 1) {
-                Thread.sleep(100L);
-            }
-        }
-        return uuidMap;
-    }
+		//String url = "http://10.1.1.40:9998/event/1";
+		//Event event = restTemplate.getForObject(url, Event.class, urlVariables);
 
-    private static class Profile {
-        String id;
-        String name;
-    }
+/*		try {
+			JSONObject jsonObject = new JSONObject(event);
+
+			Log.d(TAG, "Result: [" + jsonObject.get("id") + "]");
+			Log.d(TAG, "Result: [" + jsonObject.get("title") + "]");
+			Log.d(TAG, "Result: [" + jsonObject.get("Locations") + "]");
+		} catch (JSONException ex) {
+			ex.printStackTrace();
+		}
+*/
+		Map<String, UUID> uuidMap = new HashMap<>();
+		int requests = (int) Math.ceil(names.size() / PROFILES_PER_REQUEST);
+		for (int i = 0; i < requests; i++) {
+			String body = RedisBungeeCore.getGson().toJson(names.subList(i * 100, Math.min((i + 1) * 100, names.size())));
+			Profile[] profiles = restTemplate.postForObject(PROFILE_URL, body, Profile[].class);
+
+			for (Profile profile : profiles) {
+				UUID uuid = uuidTranslator.getMojangianUUID(profile.id);
+				uuidMap.put(profile.name, uuid);
+			}
+			if (rateLimiting && i != requests - 1) {
+				try {
+					Thread.sleep(100L);
+				} catch (InterruptedException ignored) {}
+			}
+		}
+		return uuidMap;
+	}
+
+	private static class Profile {
+		String id;
+		String name;
+	}
 }

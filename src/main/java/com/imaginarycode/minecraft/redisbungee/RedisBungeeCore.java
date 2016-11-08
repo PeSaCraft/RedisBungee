@@ -93,43 +93,44 @@ public final class RedisBungeeCore {
 		} catch (JedisConnectionException e) {
 			throw new RuntimeException("Unable to connect to your Redis server!", e);
 		}
-		if (pool != null) {
-			try (Jedis tmpRsc = pool.getResource()) {
-				// This is more portable than INFO <section>
-				String info = tmpRsc.info();
-				for (String s : info.split("\r\n")) {
-					if (s.startsWith("redis_version:")) {
-						String version = s.split(":")[1];
-						if (!(usingLua = RedisUtil.canUseLua(version))) {
-							getLogger().warning("Your version of Redis (" + version + ") is not at least version 2.6. RedisBungee requires a newer version of Redis.");
-							throw new RuntimeException("Unsupported Redis version detected");
-						} else {
-							LuaManager manager = new LuaManager(this);
-							getPlayerCountScript = manager.createScript(IOUtil.readInputStreamAsString(getResourceAsStream("lua/get_player_count.lua")));
-						}
-						break;
+
+		try (Jedis tmpRsc = pool.getResource()) {
+			// This is more portable than INFO <section>
+			String info = tmpRsc.info();
+			for (String s : info.split("\r\n")) {
+				if (s.startsWith("redis_version:")) {
+					String version = s.split(":")[1];
+					if (!(usingLua = RedisUtil.canUseLua(version))) {
+						getLogger().warning("Your version of Redis (" + version + ") is not at least version 2.6. RedisBungee requires a newer version of Redis.");
+						throw new RuntimeException("Unsupported Redis version detected");
+					} else {
+						LuaManager manager = new LuaManager(this);
+						getPlayerCountScript = manager.createScript(IOUtil.readInputStreamAsString(getResourceAsStream("lua/get_player_count.lua")));
 					}
-				}
-
-				tmpRsc.hset("heartbeats", configuration.getServerId(), String.valueOf(System.currentTimeMillis()));
-
-				long uuidCacheSize = tmpRsc.hlen("uuid-cache");
-				if (uuidCacheSize > 750000) {
-					getLogger().info("Looks like you have a really big UUID cache! Run https://www.spigotmc.org/resources/redisbungeecleaner.8505/ as soon as possible.");
+					break;
 				}
 			}
-			serverIds = getCurrentServerIds(true, false);
-			uuidTranslator = new UUIDTranslator(this);
-			heartbeatTask = jkljkj;
-			dataManager = new DataManager(this);
-			registerCommands();
-			api = new RedisBungeeAPI(this);
-			getProxy().getPluginManager().registerListener(this, new RedisBungeeListener(this, configuration.getExemptAddresses()));
-			getProxy().getPluginManager().registerListener(this, dataManager);
-			psl = new PubSubListener();
-			getProxy().getScheduler().runAsync(this, psl);
-			integrityCheck = mjkl;
+
+			tmpRsc.hset("heartbeats", configuration.getServerId(), String.valueOf(System.currentTimeMillis()));
+
+			long uuidCacheSize = tmpRsc.hlen("uuid-cache");
+			if (uuidCacheSize > 750000) {
+				getLogger().info("Looks like you have a really big UUID cache! Run https://www.spigotmc.org/resources/redisbungeecleaner.8505/ as soon as possible.");
+			}
 		}
+		serverIds = getCurrentServerIds(true, false);
+		uuidTranslator = new UUIDTranslator(this);
+		heartbeatTask = jkljkj;
+		dataManager = new DataManager(this);
+		registerCommands();
+		api = new RedisBungeeAPI(this);
+		getProxy().getPluginManager().registerListener(this, new RedisBungeeListener(this, configuration.getExemptAddresses()));
+		getProxy().getPluginManager().registerListener(this, dataManager);
+		psl = new PubSubListener();
+		getProxy().getScheduler().runAsync(this, psl);
+		integrityCheck = mjkl;
+
+
 		getProxy().registerChannel("RedisBungee");
 	}
 
@@ -218,11 +219,6 @@ public final class RedisBungeeCore {
 		FutureTask<Void> task2 = new FutureTask<>(new Callable<Void>() {
 			@Override
 			public Void call() throws Exception {
-				httpClient = new OkHttpClient();
-				Dispatcher dispatcher = new Dispatcher();
-				httpClient.setDispatcher(dispatcher);
-				NameFetcher.setHttpClient(httpClient);
-				UUIDFetcher.setHttpClient(httpClient);
 				RedisBungeeCore.configuration = new RedisBungeeConfiguration(RedisBungeeCore.this.getPool(), configuration);
 				return null;
 			}
