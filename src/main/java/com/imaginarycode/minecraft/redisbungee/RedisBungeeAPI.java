@@ -11,20 +11,20 @@ import java.net.InetAddress;
 import java.util.*;
 
 /**
- * This class exposes some internal RedisBungee functions. You obtain an instance of this object by invoking {@link RedisBungee#getApi()}.
+ * This class exposes some internal RedisBungee functions. You obtain an instance of this object by invoking {@link RedisBungeeCore#getApi()}.
  *
  * @author tuxed
  * @since 0.2.3
  */
 public class RedisBungeeAPI {
-    private final RedisBungee plugin;
+    private final RedisBungeeCore plugin;
     private final List<String> reservedChannels;
 
-    RedisBungeeAPI(RedisBungee plugin) {
+    RedisBungeeAPI(RedisBungeeCore plugin) {
         this.plugin = plugin;
         this.reservedChannels = ImmutableList.of(
                 "redisbungee-allservers",
-                "redisbungee-" + RedisBungee.getConfiguration().getServerId(),
+                "redisbungee-" + RedisBungeeCore.getConfiguration().getServerId(),
                 "redisbungee-data"
         );
     }
@@ -192,7 +192,7 @@ public class RedisBungeeAPI {
      * @since 0.2.5
      */
     public final String getServerId() {
-        return RedisBungee.getConfiguration().getServerId();
+        return RedisBungeeCore.getConfiguration().getServerId();
     }
 
     /**
@@ -213,7 +213,7 @@ public class RedisBungeeAPI {
      * @since 0.3
      */
     public final void registerPubSubChannels(String... channels) {
-        RedisBungee.getPubSubListener().addChannel(channels);
+        RedisBungeeCore.getPubSubListener().addChannel(channels);
     }
 
     /**
@@ -227,7 +227,7 @@ public class RedisBungeeAPI {
             Preconditions.checkArgument(!reservedChannels.contains(channel), "attempting to unregister internal channel");
         }
 
-        RedisBungee.getPubSubListener().removeChannel(channels);
+        RedisBungeeCore.getPubSubListener().removeChannel(channels);
     }
 
     /**

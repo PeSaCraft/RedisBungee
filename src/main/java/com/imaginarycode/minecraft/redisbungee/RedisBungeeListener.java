@@ -42,7 +42,7 @@ public class RedisBungeeListener implements Listener {
                     .append("\n\nWe found someone online using your username. They were kicked and you may reconnect.\nIf this does not work, please contact staff.")
                     .color(ChatColor.GRAY)
                     .create();
-    private final RedisBungee plugin;
+    private final RedisBungeeCore plugin;
     private final List<InetAddress> exemptAddresses;
 
     @EventHandler(priority = EventPriority.LOWEST)
@@ -97,7 +97,7 @@ public class RedisBungeeListener implements Listener {
     	plugin.getProxy().getScheduler().runAsync(plugin, new RedisCallable<Void>(plugin) {
             @Override
             protected Void call(Jedis jedis) {
-                jedis.publish("redisbungee-data", RedisBungee.getGson().toJson(new DataManager.DataManagerMessage<>(
+                jedis.publish("redisbungee-data", RedisBungeeCore.getGson().toJson(new DataManager.DataManagerMessage<>(
                         event.getPlayer().getUniqueId(), DataManager.DataManagerMessage.Action.JOIN,
                         new DataManager.LoginPayload(event.getPlayer().getAddress().getAddress()))));
                 return null;
@@ -148,7 +148,7 @@ public class RedisBungeeListener implements Listener {
         			default:
         				break;
                     }
-                	jedis.publish("redisbungee-data", RedisBungee.getGson().toJson(new DataManager.DataManagerMessage<>(
+                	jedis.publish("redisbungee-data", RedisBungeeCore.getGson().toJson(new DataManager.DataManagerMessage<>(
                             event.getPlayer().getUniqueId(), DataManager.DataManagerMessage.Action.SERVER_CHANGE,
                             new DataManager.ServerChangePayload(newServerName, null))));
                     return null;
@@ -200,7 +200,7 @@ public class RedisBungeeListener implements Listener {
         			default:
         				break;
                     }
-                	jedis.publish("redisbungee-data", RedisBungee.getGson().toJson(new DataManager.DataManagerMessage<>(
+                	jedis.publish("redisbungee-data", RedisBungeeCore.getGson().toJson(new DataManager.DataManagerMessage<>(
                             event.getPlayer().getUniqueId(), DataManager.DataManagerMessage.Action.SERVER_CHANGE,
                             new DataManager.ServerChangePayload(newServerName, currentServerName))));
                     return null;
@@ -247,7 +247,7 @@ public class RedisBungeeListener implements Listener {
                                 original = plugin.getPlayers();
                             } else {
                                 try {
-                                    original = RedisBungee.getApi().getPlayersOnServer(type);
+                                    original = RedisBungeeCore.getApi().getPlayersOnServer(type);
                                 } catch (IllegalArgumentException ignored) {
                                 }
                             }
@@ -265,7 +265,7 @@ public class RedisBungeeListener implements Listener {
                             } else {
                                 out.writeUTF(type);
                                 try {
-                                    out.writeInt(RedisBungee.getApi().getPlayersOnServer(type).size());
+                                    out.writeInt(RedisBungeeCore.getApi().getPlayersOnServer(type).size());
                                 } catch (IllegalArgumentException e) {
                                     out.writeInt(0);
                                 }
@@ -275,12 +275,12 @@ public class RedisBungeeListener implements Listener {
                             String user = in.readUTF();
                             out.writeUTF("LastOnline");
                             out.writeUTF(user);
-                            out.writeLong(RedisBungee.getApi().getLastOnline(plugin.getUuidTranslator().getTranslatedUuid(user, true)));
+                            out.writeLong(RedisBungeeCore.getApi().getLastOnline(plugin.getUuidTranslator().getTranslatedUuid(user, true)));
                             break;
                         case "ServerPlayers":
                             String type1 = in.readUTF();
                             out.writeUTF("ServerPlayers");
-                            Multimap<String, UUID> multimap = RedisBungee.getApi().getServerToPlayers();
+                            Multimap<String, UUID> multimap = RedisBungeeCore.getApi().getServerToPlayers();
 
                             boolean includesUsers;
 
@@ -310,7 +310,7 @@ public class RedisBungeeListener implements Listener {
                             break;
                         case "Proxy":
                             out.writeUTF("Proxy");
-                            out.writeUTF(RedisBungee.getConfiguration().getServerId());
+                            out.writeUTF(RedisBungeeCore.getConfiguration().getServerId());
                             break;
                         default:
                             return;
@@ -351,7 +351,7 @@ public class RedisBungeeListener implements Listener {
 
     @EventHandler
     public void onPubSubMessage(PubSubMessageEvent event) {
-        if (event.getChannel().equals("redisbungee-allservers") || event.getChannel().equals("redisbungee-" + RedisBungee.getApi().getServerId())) {
+        if (event.getChannel().equals("redisbungee-allservers") || event.getChannel().equals("redisbungee-" + RedisBungeeCore.getApi().getServerId())) {
             String message = event.getMessage();
             if (message.startsWith("/"))
                 message = message.substring(1);

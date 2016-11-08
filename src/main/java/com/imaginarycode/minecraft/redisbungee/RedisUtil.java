@@ -50,21 +50,21 @@ public class RedisUtil {
         Map<String, String> playerData = new HashMap<>(4);
         playerData.put("online", "0");
         playerData.put("ip", connection.getAddress().getAddress().getHostAddress());
-        playerData.put("proxy", RedisBungee.getConfiguration().getServerId());
+        playerData.put("proxy", RedisBungeeCore.getConfiguration().getServerId());
         playerData.put("name", connection.getName());
 
-        pipeline.sadd("proxy:" + RedisBungee.getApi().getServerId() + ":usersOnline", connection.getUniqueId().toString());
+        pipeline.sadd("proxy:" + RedisBungeeCore.getApi().getServerId() + ":usersOnline", connection.getUniqueId().toString());
         pipeline.hmset("player:" + connection.getUniqueId().toString(), playerData);
 
         if (fireEvent) {
-            pipeline.publish("redisbungee-data", RedisBungee.getGson().toJson(new DataManager.DataManagerMessage<>(
+            pipeline.publish("redisbungee-data", RedisBungeeCore.getGson().toJson(new DataManager.DataManagerMessage<>(
                     connection.getUniqueId(), DataManager.DataManagerMessage.Action.JOIN,
                     new DataManager.LoginPayload(connection.getAddress().getAddress()))));
         }
     }
 
     public static void cleanUpPlayer(String player, Jedis rsc) {
-    	rsc.srem("proxy:" + RedisBungee.getApi().getServerId() + ":usersOnline", player);
+    	rsc.srem("proxy:" + RedisBungeeCore.getApi().getServerId() + ":usersOnline", player);
     	rsc.hdel("player:" + player, "server", "ip", "proxy");
         ServerInfo server = ProxyServer.getInstance().getServerInfo(rsc.hget("player:" + player, "server"));
         if (server != null) {
@@ -87,7 +87,7 @@ public class RedisUtil {
         }
         long timestamp = System.currentTimeMillis();
         rsc.hset("player:" + player, "online", String.valueOf(timestamp));
-        rsc.publish("redisbungee-data", RedisBungee.getGson().toJson(new DataManager.DataManagerMessage<>(
+        rsc.publish("redisbungee-data", RedisBungeeCore.getGson().toJson(new DataManager.DataManagerMessage<>(
                 UUID.fromString(player), DataManager.DataManagerMessage.Action.LEAVE,
                 new DataManager.LogoutPayload(timestamp))));
     }

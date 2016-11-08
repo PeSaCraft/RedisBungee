@@ -1,6 +1,6 @@
 package com.imaginarycode.minecraft.redisbungee.util;
 
-import com.imaginarycode.minecraft.redisbungee.RedisBungee;
+import com.imaginarycode.minecraft.redisbungee.RedisBungeeCore;
 import lombok.RequiredArgsConstructor;
 import redis.clients.jedis.Jedis;
 import redis.clients.jedis.exceptions.JedisDataException;
@@ -9,7 +9,7 @@ import java.util.List;
 
 @RequiredArgsConstructor
 public class LuaManager {
-    private final RedisBungee plugin;
+    private final RedisBungeeCore plugin;
 
     public Script createScript(String script) {
         try (Jedis jedis = plugin.getPool().getResource()) {

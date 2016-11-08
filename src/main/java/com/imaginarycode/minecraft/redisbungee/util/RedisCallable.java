@@ -1,6 +1,6 @@
 package com.imaginarycode.minecraft.redisbungee.util;
 
-import com.imaginarycode.minecraft.redisbungee.RedisBungee;
+import com.imaginarycode.minecraft.redisbungee.RedisBungeeCore;
 import lombok.AllArgsConstructor;
 import redis.clients.jedis.Jedis;
 import redis.clients.jedis.exceptions.JedisConnectionException;
@@ -10,7 +10,7 @@ import java.util.logging.Level;
 
 @AllArgsConstructor
 public abstract class RedisCallable<T> implements Callable<T>, Runnable {
-    private final RedisBungee plugin;
+    private final RedisBungeeCore plugin;
 
     @Override
     public T call() {
