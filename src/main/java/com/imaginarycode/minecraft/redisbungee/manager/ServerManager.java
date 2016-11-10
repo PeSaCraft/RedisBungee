@@ -33,39 +33,39 @@ public class ServerManager {
 
 	@Getter
 	private volatile List<String> serverIds;
-    private final AtomicInteger nagAboutServers = new AtomicInteger();
+	private final AtomicInteger nagAboutServers = new AtomicInteger();
 
-    public boolean existsServer(String serverId) {
-    	return getServerIds().contains(serverId);
-    }
+	public boolean existsServer(String serverId) {
+		return getServerIds().contains(serverId);
+	}
 
-    private List<String> getCurrentServerIds(boolean nag, boolean lagged) {
-        long time = redisServerCommands.time();
+	private List<String> getCurrentServerIds(boolean nag, boolean lagged) {
+		long time = redisServerCommands.time();
 
-        int nagTime = 0;
+		int nagTime = 0;
 
-        if (nag) {
-            nagTime = nagAboutServers.decrementAndGet();
-            if (nagTime <= 0) {
-                nagAboutServers.set(10);
-            }
-        }
+		if (nag) {
+			nagTime = nagAboutServers.decrementAndGet();
+			if (nagTime <= 0) {
+				nagAboutServers.set(10);
+			}
+		}
 
-        ImmutableList.Builder<String> servers = ImmutableList.builder();
-        Map<String, String> heartbeats = hashOperations.entries("heartbeats");
+		ImmutableList.Builder<String> servers = ImmutableList.builder();
+		Map<String, String> heartbeats = hashOperations.entries("heartbeats");
 
-        for (Map.Entry<String, String> entry : heartbeats.entrySet()) {
-            try {
-                long stamp = Long.parseLong(entry.getValue());
-                if (lagged ? time >= stamp + 30 : time <= stamp + 30)
-                    servers.add(entry.getKey());
-                else if (nag && nagTime <= 0) {
-                    getLogger().severe(entry.getKey() + " is " + (time - stamp) + " seconds behind! (Time not synchronized or server down?)");
-                }
-            } catch (NumberFormatException ignored) {
-            }
-        }
-        return servers.build();
+		for (Map.Entry<String, String> entry : heartbeats.entrySet()) {
+			try {
+				long stamp = Long.parseLong(entry.getValue());
+				if (lagged ? time >= stamp + 30 : time <= stamp + 30)
+					servers.add(entry.getKey());
+				else if (nag && nagTime <= 0) {
+					getLogger().severe(entry.getKey() + " is " + (time - stamp) + " seconds behind! (Time not synchronized or server down?)");
+				}
+			} catch (NumberFormatException ignored) {
+			}
+		}
+		return servers.build();
 
-    }
+	}
 }

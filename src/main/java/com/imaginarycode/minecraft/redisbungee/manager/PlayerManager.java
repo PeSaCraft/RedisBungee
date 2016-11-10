@@ -63,7 +63,7 @@ public class PlayerManager {
 		return builder.build();
 	}
 
-	final Multimap<String, UUID> serversToPlayers() {
+	public final Multimap<String, UUID> serversToPlayers() {
 		try {
 			return serverToPlayersCache.get(SERVER_TO_PLAYERS_KEY, new Callable<Multimap<String, UUID>>() {
 				@Override
@@ -83,7 +83,7 @@ public class PlayerManager {
 		}
 	}
 
-	final int getCount() {
+	public final int getCount() {
 		return globalPlayerCount.get();
 	}
 
@@ -100,7 +100,7 @@ public class PlayerManager {
 		return builder.build();
 	}
 
-	final Set<UUID> getPlayers() {
+	public final Set<UUID> getPlayers() {
 		ImmutableSet.Builder<UUID> setBuilder = ImmutableSet.builder();
 
 		List<String> keys = new ArrayList<>();

@@ -12,8 +12,11 @@ import com.imaginarycode.minecraft.redisbungee.events.PlayerChangedServerNetwork
 import com.imaginarycode.minecraft.redisbungee.events.PlayerJoinedNetworkEvent;
 import com.imaginarycode.minecraft.redisbungee.events.PlayerLeftNetworkEvent;
 import com.imaginarycode.minecraft.redisbungee.events.PubSubMessageEvent;
+
+import de.pesacraft.bungee.core.server.ServerInformation;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
+import net.md_5.bungee.api.ProxyServer;
 import net.md_5.bungee.api.connection.ProxiedPlayer;
 import net.md_5.bungee.api.event.PlayerDisconnectEvent;
 import net.md_5.bungee.api.event.PostLoginEvent;
@@ -50,6 +53,9 @@ public class CachedDataManager implements Listener {
 	@Resource(name = "redisTemplate")
 	private HashOperations<String, String, String> hashOperations;
 
+	@Autowired
+	private ServerInformation serverInformation;
+
 	private final Cache<UUID, String> serverCache = createCache();
 	private final Cache<UUID, String> proxyCache = createCache();
 	private final Cache<UUID, InetAddress> ipCache = createCache();
@@ -64,7 +70,7 @@ public class CachedDataManager implements Listener {
 	}
 
 	public String getServer(final UUID uuid) {
-		ProxiedPlayer player = plugin.getProxy().getPlayer(uuid);
+		ProxiedPlayer player = ProxyServer.getInstance().getPlayer(uuid);
 
 		if (player != null)
 			return player.getServer() != null ? player.getServer().getInfo().getName() : null;
@@ -87,10 +93,10 @@ public class CachedDataManager implements Listener {
 	}
 
 	public String getProxy(final UUID uuid) {
-		ProxiedPlayer player = plugin.getProxy().getPlayer(uuid);
+		ProxiedPlayer player = ProxyServer.getInstance().getPlayer(uuid);
 
 		if (player != null)
-			return RedisBungeeCore.getConfiguration().getServerId();
+			return serverInformation.getServerName();
 
 		try {
 			return proxyCache.get(uuid, new Callable<String>() {
@@ -110,7 +116,7 @@ public class CachedDataManager implements Listener {
 	}
 
 	public InetAddress getIp(final UUID uuid) {
-		ProxiedPlayer player = plugin.getProxy().getPlayer(uuid);
+		ProxiedPlayer player = ProxyServer.getInstance().getPlayer(uuid);
 
 		if (player != null)
 			return player.getAddress().getAddress();
@@ -134,7 +140,7 @@ public class CachedDataManager implements Listener {
 	}
 
 	public long getLastOnline(final UUID uuid) {
-		ProxiedPlayer player = plugin.getProxy().getPlayer(uuid);
+		ProxiedPlayer player = ProxyServer.getInstance().getPlayer(uuid);
 
 		if (player != null)
 			return 0;
