@@ -1,6 +1,9 @@
 package com.imaginarycode.minecraft.redisbungee;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.imaginarycode.minecraft.redisbungee.manager.CachedDataManager;
+
+import de.pesacraft.shares.config.CustomRedisTemplate;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 import net.md_5.bungee.api.ProxyServer;
@@ -15,20 +18,39 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
+import javax.annotation.Resource;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.HashOperations;
+import org.springframework.data.redis.core.SetOperations;
+import org.springframework.stereotype.Component;
+
 @VisibleForTesting
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
+@Component
 public class RedisUtil {
-    protected static void createPlayer(ProxiedPlayer player, Pipeline pipeline, boolean fireEvent) {
-        createPlayer(player.getPendingConnection(), pipeline, fireEvent);
+
+	@Autowired
+	private CustomRedisTemplate redisTemplate;
+
+	@Resource(name = "redisTemplate")
+	private HashOperations<String, String, String> hashOperations;
+
+	@Resource(name = "redisTemplate")
+	private SetOperations<String, String> setOperations;
+
+    public void createPlayer(ProxiedPlayer player, boolean fireEvent) {
+        createPlayer(player.getPendingConnection(), fireEvent);
         if (player.getServer() != null) {
         	String uuid = player.getUniqueId().toString();
         	ServerInfo server = player.getServer().getInfo();
         	String serverName = server.getName();
         	String categoryKey = "category:" + server.getCategory().getName();
-        	
-            pipeline.hset("player:" + uuid, "server", serverName);
-            pipeline.sadd("server:" + serverName + ":usersOnline", uuid);
-            pipeline.sadd(categoryKey + ":usersOnline", uuid);
+
+            hashOperations.put("player:" + uuid, "server", serverName);
+            setOperations.add("server:" + serverName + ":usersOnline", uuid);
+            setOperations.add(categoryKey + ":usersOnline", uuid);
+
             int players;
             switch (server.getServerType()) {
 			case DIRECT: case LOBBY:
@@ -46,30 +68,31 @@ public class RedisUtil {
         }
     }
 
-    protected static void createPlayer(PendingConnection connection, Pipeline pipeline, boolean fireEvent) {
+    public void createPlayer(PendingConnection connection, boolean fireEvent) {
         Map<String, String> playerData = new HashMap<>(4);
         playerData.put("online", "0");
         playerData.put("ip", connection.getAddress().getAddress().getHostAddress());
         playerData.put("proxy", RedisBungeeCore.getConfiguration().getServerId());
         playerData.put("name", connection.getName());
 
-        pipeline.sadd("proxy:" + RedisBungeeCore.getApi().getServerId() + ":usersOnline", connection.getUniqueId().toString());
-        pipeline.hmset("player:" + connection.getUniqueId().toString(), playerData);
+        setOperations.add("proxy:" + RedisBungeeCore.getApi().getServerId() + ":usersOnline", connection.getUniqueId().toString());
+        hashOperations.putAll("player:" + connection.getUniqueId().toString(), playerData);
 
         if (fireEvent) {
-            pipeline.publish("redisbungee-data", RedisBungeeCore.getGson().toJson(new DataManager.DataManagerMessage<>(
-                    connection.getUniqueId(), DataManager.DataManagerMessage.Action.JOIN,
-                    new DataManager.LoginPayload(connection.getAddress().getAddress()))));
+            redisTemplate.convertAndSend("redisbungee-data", RedisBungeeCore.getGson().toJson(new CachedDataManager.DataManagerMessage<>(
+                    connection.getUniqueId(), CachedDataManager.DataManagerMessage.Action.JOIN,
+                    new CachedDataManager.LoginPayload(connection.getAddress().getAddress()))));
         }
     }
 
-    public static void cleanUpPlayer(String player, Jedis rsc) {
-    	rsc.srem("proxy:" + RedisBungeeCore.getApi().getServerId() + ":usersOnline", player);
-    	rsc.hdel("player:" + player, "server", "ip", "proxy");
-        ServerInfo server = ProxyServer.getInstance().getServerInfo(rsc.hget("player:" + player, "server"));
+    public void cleanUpPlayer(String player) {
+    	setOperations.remove("proxy:" + RedisBungeeCore.getApi().getServerId() + ":usersOnline", player);
+    	hashOperations.delete("player:" + player, "server", "ip", "proxy");
+        ServerInfo server = ProxyServer.getInstance().getServerInfo(
+        		hashOperations.get("player:" + player, "server"));
         if (server != null) {
-        	rsc.srem("server:" + server.getName() + ":usersOnline", player);
-	        rsc.srem("category:" + server.getCategory().getName() + ":usersOnline", player);
+        	setOperations.remove("server:" + server.getName() + ":usersOnline", player);
+        	setOperations.remove("category:" + server.getCategory().getName() + ":usersOnline", player);
 	        int players;
 	        switch (server.getServerType()) {
 			case DIRECT: case LOBBY:
@@ -86,10 +109,10 @@ public class RedisUtil {
 	        }
         }
         long timestamp = System.currentTimeMillis();
-        rsc.hset("player:" + player, "online", String.valueOf(timestamp));
-        rsc.publish("redisbungee-data", RedisBungeeCore.getGson().toJson(new DataManager.DataManagerMessage<>(
-                UUID.fromString(player), DataManager.DataManagerMessage.Action.LEAVE,
-                new DataManager.LogoutPayload(timestamp))));
+        hashOperations.put("player:" + player, "online", String.valueOf(timestamp));
+        redisTemplate.convertAndSend("redisbungee-data", RedisBungeeCore.getGson().toJson(new CachedDataManager.DataManagerMessage<>(
+                UUID.fromString(player), CachedDataManager.DataManagerMessage.Action.LEAVE,
+                new CachedDataManager.LogoutPayload(timestamp))));
     }
 
     public static boolean canUseLua(String redisVersion) {
