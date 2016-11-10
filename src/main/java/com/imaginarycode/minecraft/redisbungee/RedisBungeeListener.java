@@ -8,6 +8,7 @@ import com.google.common.io.ByteArrayDataInput;
 import com.google.common.io.ByteArrayDataOutput;
 import com.google.common.io.ByteStreams;
 import com.imaginarycode.minecraft.redisbungee.events.PubSubMessageEvent;
+import com.imaginarycode.minecraft.redisbungee.manager.CachedDataManager;
 import com.imaginarycode.minecraft.redisbungee.util.RedisCallable;
 import lombok.AllArgsConstructor;
 import net.md_5.bungee.api.AbstractReconnectHandler;
@@ -45,95 +46,24 @@ public class RedisBungeeListener implements Listener {
     private final RedisBungeeCore plugin;
     private final List<InetAddress> exemptAddresses;
 
-    @EventHandler(priority = EventPriority.LOWEST)
-    public void onLogin(final LoginEvent event) {
-        event.registerIntent(plugin);
-        plugin.getProxy().getScheduler().runAsync(plugin, new RedisCallable<Void>(plugin) {
-            @Override
-            protected Void call(Jedis jedis) {
-                try {
-                    if (event.isCancelled()) {
-                        return null;
-                    }
-
-                    // We make sure they aren't trying to use an existing player's name.
-                    // This is problematic for online-mode servers as they always disconnect old clients.
-                    if (plugin.getProxy().getConfig().isOnlineMode()) {
-                        ProxiedPlayer player = plugin.getProxy().getPlayer(event.getConnection().getName());
-
-                        if (player != null) {
-                            event.setCancelled(true);
-                            // TODO: Make it accept a BaseComponent[] like everything else.
-                            event.setCancelReason(TextComponent.toLegacyText(ONLINE_MODE_RECONNECT));
-                            return null;
-                        }
-                    }
-
-                    for (String s : plugin.getServerIds()) {
-                        if (jedis.sismember("proxy:" + s + ":usersOnline", event.getConnection().getUniqueId().toString())) {
-                            event.setCancelled(true);
-                            // TODO: Make it accept a BaseComponent[] like everything else.
-                            event.setCancelReason(TextComponent.toLegacyText(ALREADY_LOGGED_IN));
-                            return null;
-                        }
-                    }
-
-                    Pipeline pipeline = jedis.pipelined();
-                    plugin.getUuidTranslator().persistInfo(event.getConnection().getName(), event.getConnection().getUniqueId(), pipeline);
-                    RedisUtil.createPlayer(event.getConnection(), pipeline, false);
-                    // We're not publishing, the API says we only publish at PostLoginEvent time.
-                    pipeline.sync();
-
-                    return null;
-                } finally {
-                    event.completeIntent(plugin);
-                }
-            }
-        });
-    }
-
-    @EventHandler
-    public void onPostLogin(final PostLoginEvent event) {
-    	plugin.getProxy().getScheduler().runAsync(plugin, new RedisCallable<Void>(plugin) {
-            @Override
-            protected Void call(Jedis jedis) {
-                jedis.publish("redisbungee-data", RedisBungeeCore.getGson().toJson(new DataManager.DataManagerMessage<>(
-                        event.getPlayer().getUniqueId(), DataManager.DataManagerMessage.Action.JOIN,
-                        new DataManager.LoginPayload(event.getPlayer().getAddress().getAddress()))));
-                return null;
-            }
-        });
-    }
-
-    @EventHandler
-    public void onPlayerDisconnect(final PlayerDisconnectEvent event) {
-        plugin.getProxy().getScheduler().runAsync(plugin, new RedisCallable<Void>(plugin) {
-            @Override
-            protected Void call(Jedis jedis) {
-                RedisUtil.cleanUpPlayer(event.getPlayer().getUniqueId().toString(), jedis);
-                return null;
-            }
-        });
-    }
-
     @EventHandler
     public void onServerChange(final ServerConnectedEvent event) {
     	final ServerInfo currentServer = event.getPlayer().getServer() == null ? null : event.getPlayer().getServer().getInfo();
     	final ServerInfo newServer = event.getServer().getInfo();
-    	
+
     	if (currentServer == null) {
     		// joining network
     		final String newServerName = newServer.getName();
             final String uuid = event.getPlayer().getUniqueId().toString();
-            
+
             plugin.getProxy().getScheduler().runAsync(plugin, new RedisCallable<Void>(plugin) {
                 @Override
                 protected Void call(Jedis jedis) {
                 	jedis.hset("player:" + uuid, "server", newServerName);
                 	jedis.sadd("server:" + newServerName + ":usersOnline", uuid);
-                    
+
                     jedis.sadd("category:" + newServer.getCategory().getName() + ":usersOnline", uuid);
-                    
+
                     int players;
                     switch (newServer.getServerType()) {
         			case DIRECT: case LOBBY:
@@ -148,9 +78,9 @@ public class RedisBungeeListener implements Listener {
         			default:
         				break;
                     }
-                	jedis.publish("redisbungee-data", RedisBungeeCore.getGson().toJson(new DataManager.DataManagerMessage<>(
-                            event.getPlayer().getUniqueId(), DataManager.DataManagerMessage.Action.SERVER_CHANGE,
-                            new DataManager.ServerChangePayload(newServerName, null))));
+                	jedis.publish("redisbungee-data", RedisBungeeCore.getGson().toJson(new CachedDataManager.DataManagerMessage<>(
+                            event.getPlayer().getUniqueId(), CachedDataManager.DataManagerMessage.Action.SERVER_CHANGE,
+                            new CachedDataManager.ServerChangePayload(newServerName, null))));
                     return null;
                 }
             });
@@ -160,19 +90,19 @@ public class RedisBungeeListener implements Listener {
     		final String currentServerName = currentServer.getName();
         	final String newServerName = newServer.getName();
             final String uuid = event.getPlayer().getUniqueId().toString();
-            
+
             plugin.getProxy().getScheduler().runAsync(plugin, new RedisCallable<Void>(plugin) {
                 @Override
                 protected Void call(Jedis jedis) {
                 	jedis.hset("player:" + uuid, "server", newServerName);
                 	jedis.srem("server:" + currentServerName + ":usersOnline", uuid);
                     jedis.sadd("server:" + newServerName + ":usersOnline", uuid);
-                    
+
                     if (newServer.getCategory() != currentServer.getCategory()) {
                     	jedis.srem("category:" + currentServer.getCategory().getName() + ":usersOnline", uuid);
                     	jedis.sadd("category:" + newServer.getCategory().getName() + ":usersOnline", uuid);
                     }
-                    
+
                     int players;
                     switch (currentServer.getServerType()) {
         			case DIRECT: case LOBBY:
@@ -200,9 +130,9 @@ public class RedisBungeeListener implements Listener {
         			default:
         				break;
                     }
-                	jedis.publish("redisbungee-data", RedisBungeeCore.getGson().toJson(new DataManager.DataManagerMessage<>(
-                            event.getPlayer().getUniqueId(), DataManager.DataManagerMessage.Action.SERVER_CHANGE,
-                            new DataManager.ServerChangePayload(newServerName, currentServerName))));
+                	jedis.publish("redisbungee-data", RedisBungeeCore.getGson().toJson(new CachedDataManager.DataManagerMessage<>(
+                            event.getPlayer().getUniqueId(), CachedDataManager.DataManagerMessage.Action.SERVER_CHANGE,
+                            new CachedDataManager.ServerChangePayload(newServerName, currentServerName))));
                     return null;
                 }
             });
