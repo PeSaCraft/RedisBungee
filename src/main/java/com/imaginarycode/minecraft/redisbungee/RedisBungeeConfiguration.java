@@ -3,34 +3,30 @@ package com.imaginarycode.minecraft.redisbungee;
 import com.google.common.collect.ImmutableList;
 import com.google.common.net.InetAddresses;
 import lombok.Getter;
-import net.md_5.bungee.config.Configuration;
-import redis.clients.jedis.JedisPool;
 
 import java.net.InetAddress;
 import java.util.List;
 
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Configuration;
+
+@Configuration
 public class RedisBungeeConfiguration {
-    @Getter
-    private final JedisPool pool;
-    @Getter
-    private final String serverId;
-    @Getter
-    private final boolean registerBungeeCommands;
-    @Getter
-    private final List<InetAddress> exemptAddresses;
 
-    public RedisBungeeConfiguration(JedisPool pool, Configuration configuration) {
-        this.pool = pool;
-        this.serverId = configuration.getString("server-id");
-        this.registerBungeeCommands = configuration.getBoolean("register-bungee-commands", true);
+	@Getter
+	@Value("${redisbungee.registerBungeeCommands}")
+	private boolean registerBungeeCommands;
 
-        List<String> stringified = configuration.getStringList("exempt-ip-addresses");
-        ImmutableList.Builder<InetAddress> addressBuilder = ImmutableList.builder();
+	@Value("${redisbungee.exemptAddresses}")
+	private List<String> exemptAddresses;
 
-        for (String s : stringified) {
-            addressBuilder.add(InetAddresses.forString(s));
-        }
+	public List<InetAddress> getExemptAddresses() {
+		ImmutableList.Builder<InetAddress> addressBuilder = ImmutableList.builder();
 
-        this.exemptAddresses = addressBuilder.build();
-    }
+		for (String s : exemptAddresses) {
+			addressBuilder.add(InetAddresses.forString(s));
+		}
+
+		return addressBuilder.build();
+	}
 }
