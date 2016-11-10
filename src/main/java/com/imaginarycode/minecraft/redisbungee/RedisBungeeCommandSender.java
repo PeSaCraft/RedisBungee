@@ -8,6 +8,8 @@ import net.md_5.bungee.api.chat.BaseComponent;
 import java.util.Collection;
 import java.util.Collections;
 
+import org.springframework.stereotype.Component;
+
 /**
  * This class is the CommandSender that RedisBungee uses to dispatch commands to BungeeCord.
  * <p>
@@ -17,61 +19,61 @@ import java.util.Collections;
  * @since 0.2.3
  */
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
+@Component
 public class RedisBungeeCommandSender implements CommandSender {
-    static final RedisBungeeCommandSender instance = new RedisBungeeCommandSender();
 
-    @Override
-    public String getName() {
-        return "RedisBungee";
-    }
+	@Override
+	public String getName() {
+		return "RedisBungee";
+	}
 
-    @Override
-    public void sendMessage(String s) {
-        // no-op
-    }
+	@Override
+	public void sendMessage(String s) {
+		// no-op
+	}
 
-    @Override
-    public void sendMessages(String... strings) {
-        // no-op
-    }
+	@Override
+	public void sendMessages(String... strings) {
+		// no-op
+	}
 
-    @Override
-    public void sendMessage(BaseComponent... baseComponents) {
-        // no-op
-    }
+	@Override
+	public void sendMessage(BaseComponent... baseComponents) {
+		// no-op
+	}
 
-    @Override
-    public void sendMessage(BaseComponent baseComponent) {
-        // no-op
-    }
+	@Override
+	public void sendMessage(BaseComponent baseComponent) {
+		// no-op
+	}
 
-    @Override
-    public Collection<String> getGroups() {
-        return Collections.emptySet();
-    }
+	@Override
+	public Collection<String> getGroups() {
+		return Collections.emptySet();
+	}
 
-    @Override
-    public void addGroups(String... strings) {
-        // no-op
-    }
+	@Override
+	public void addGroups(String... strings) {
+		// no-op
+	}
 
-    @Override
-    public void removeGroups(String... strings) {
-        // no-op
-    }
+	@Override
+	public void removeGroups(String... strings) {
+		// no-op
+	}
 
-    @Override
-    public boolean hasPermission(String s) {
-        return true;
-    }
+	@Override
+	public boolean hasPermission(String s) {
+		return true;
+	}
 
-    @Override
-    public void setPermission(String s, boolean b) {
-        // no-op
-    }
+	@Override
+	public void setPermission(String s, boolean b) {
+		// no-op
+	}
 
-    @Override
-    public Collection<String> getPermissions() {
-        return Collections.emptySet();
-    }
+	@Override
+	public Collection<String> getPermissions() {
+		return Collections.emptySet();
+	}
 }

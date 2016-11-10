@@ -278,15 +278,4 @@ public class RedisBungeeListener implements Listener {
             output.writeUTF(o.toString());
         }
     }
-
-    @EventHandler
-    public void onPubSubMessage(PubSubMessageEvent event) {
-        if (event.getChannel().equals("redisbungee-allservers") || event.getChannel().equals("redisbungee-" + RedisBungeeCore.getApi().getServerId())) {
-            String message = event.getMessage();
-            if (message.startsWith("/"))
-                message = message.substring(1);
-            plugin.getLogger().info("Invoking command via PubSub: /" + message);
-            plugin.getProxy().getPluginManager().dispatchCommand(RedisBungeeCommandSender.instance, message);
-        }
-    }
 }

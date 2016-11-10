@@ -8,6 +8,7 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.google.gson.reflect.TypeToken;
 import com.imaginarycode.minecraft.redisbungee.RedisBungee;
+import com.imaginarycode.minecraft.redisbungee.RedisBungeeCommandSender;
 import com.imaginarycode.minecraft.redisbungee.RedisBungeeCore;
 import com.imaginarycode.minecraft.redisbungee.events.PlayerChangedServerNetworkEvent;
 import com.imaginarycode.minecraft.redisbungee.events.PlayerJoinedNetworkEvent;
@@ -36,12 +37,26 @@ public class PubSubMessageListener implements Listener, InitializingBean {
 	@Autowired
 	private ServerInformation serverInformation;
 
+	@Autowired
+	private RedisBungeeCommandSender redisBungeeCommandSender;
+
 	private final JsonParser parser = new JsonParser();
 
 	@Override
 	public void afterPropertiesSet() throws Exception {
 		plugin.getProxy().getPluginManager().registerListener(plugin, this);
 	}
+
+	@EventHandler
+    public void onPubSubMessageCommands(PubSubMessageEvent event) {
+        if (event.getChannel().equals("redisbungee-allservers") || event.getChannel().equals("redisbungee-" + serverInformation.getServerName())) {
+            String message = event.getMessage();
+            if (message.startsWith("/"))
+                message = message.substring(1);
+            plugin.getLogger().info("Invoking command via PubSub: /" + message);
+            plugin.getProxy().getPluginManager().dispatchCommand(redisBungeeCommandSender, message);
+        }
+    }
 
 	@EventHandler
 	public void onPubSubMessage(PubSubMessageEvent event) {
