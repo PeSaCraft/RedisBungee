@@ -3,11 +3,11 @@ package com.imaginarycode.minecraft.redisbungee;
 import com.google.common.annotations.VisibleForTesting;
 import com.imaginarycode.minecraft.redisbungee.manager.CachedDataManager;
 
+import de.pesacraft.bungee.core.server.ServerInformation;
 import de.pesacraft.shares.config.CustomRedisTemplate;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 import net.md_5.bungee.api.ProxyServer;
-import net.md_5.bungee.api.config.LobbyGameCategoryInfo;
 import net.md_5.bungee.api.config.ServerInfo;
 import net.md_5.bungee.api.connection.PendingConnection;
 import net.md_5.bungee.api.connection.ProxiedPlayer;
@@ -39,93 +39,97 @@ public class RedisUtil {
 	@Resource(name = "redisTemplate")
 	private SetOperations<String, String> setOperations;
 
-    public void createPlayer(ProxiedPlayer player, boolean fireEvent) {
-        createPlayer(player.getPendingConnection(), fireEvent);
-        if (player.getServer() != null) {
-        	String uuid = player.getUniqueId().toString();
-        	ServerInfo server = player.getServer().getInfo();
-        	String serverName = server.getName();
-        	String categoryKey = "category:" + server.getCategory().getName();
+	@Autowired
+	private ServerInformation serverInformation;
 
-            hashOperations.put("player:" + uuid, "server", serverName);
-            setOperations.add("server:" + serverName + ":usersOnline", uuid);
-            setOperations.add(categoryKey + ":usersOnline", uuid);
+	public void createPlayer(ProxiedPlayer player, boolean fireEvent) {
+		createPlayer(player.getPendingConnection(), fireEvent);
+		if (player.getServer() != null) {
+			String uuid = player.getUniqueId().toString();
+			ServerInfo server = player.getServer().getInfo();
+			String serverName = server.getName();
+//			String categoryKey = "category:" + server.getCategory().getName();
 
-            int players;
-            switch (server.getServerType()) {
-			case DIRECT: case LOBBY:
-				players = pipeline.zincrby(categoryKey + ":servers", 1, serverName).get().intValue();
-				server.getCategory().putServer(server, players);
-				break;
-			case GAME:
-				String map = server.getMap();
-				players = pipeline.zincrby(categoryKey + ":map:" + map, 1, serverName).get().intValue();
-				((LobbyGameCategoryInfo) server.getCategory()).putGameServer(server.getMap(), server, players);
-				break;
-			default:
-				break;
-            }
-        }
-    }
+			hashOperations.put("player:" + uuid, "server", serverName);
+			setOperations.add("server:" + serverName + ":usersOnline", uuid);
+//			setOperations.add(categoryKey + ":usersOnline", uuid);
 
-    public void createPlayer(PendingConnection connection, boolean fireEvent) {
-        Map<String, String> playerData = new HashMap<>(4);
-        playerData.put("online", "0");
-        playerData.put("ip", connection.getAddress().getAddress().getHostAddress());
-        playerData.put("proxy", RedisBungeeCore.getConfiguration().getServerId());
-        playerData.put("name", connection.getName());
+//			int players;
+//			switch (server.getServerType()) {
+//			case DIRECT: case LOBBY:
+//				players = pipeline.zincrby(categoryKey + ":servers", 1, serverName).get().intValue();
+//				server.getCategory().putServer(server, players);
+//				break;
+//			case GAME:
+//				String map = server.getMap();
+//				players = pipeline.zincrby(categoryKey + ":map:" + map, 1, serverName).get().intValue();
+//				((LobbyGameCategoryInfo) server.getCategory()).putGameServer(server.getMap(), server, players);
+//				break;
+//			default:
+//				break;
+//			}
+		}
+	}
 
-        setOperations.add("proxy:" + RedisBungeeCore.getApi().getServerId() + ":usersOnline", connection.getUniqueId().toString());
-        hashOperations.putAll("player:" + connection.getUniqueId().toString(), playerData);
+	public void createPlayer(PendingConnection connection, boolean fireEvent) {
+		Map<String, String> playerData = new HashMap<>(4);
+		playerData.put("online", "0");
+		playerData.put("ip", connection.getAddress().getAddress().getHostAddress());
+		playerData.put("proxy", serverInformation.getServerName());
+		playerData.put("name", connection.getName());
 
-        if (fireEvent) {
-            redisTemplate.convertAndSend("redisbungee-data", RedisBungeeCore.getGson().toJson(new CachedDataManager.DataManagerMessage<>(
-                    connection.getUniqueId(), CachedDataManager.DataManagerMessage.Action.JOIN,
-                    new CachedDataManager.LoginPayload(connection.getAddress().getAddress()))));
-        }
-    }
+		setOperations.add("proxy:" + serverInformation.getServerName() + ":usersOnline", connection.getUniqueId().toString());
+		hashOperations.putAll("player:" + connection.getUniqueId().toString(), playerData);
 
-    public void cleanUpPlayer(String player) {
-    	setOperations.remove("proxy:" + RedisBungeeCore.getApi().getServerId() + ":usersOnline", player);
-    	hashOperations.delete("player:" + player, "server", "ip", "proxy");
-        ServerInfo server = ProxyServer.getInstance().getServerInfo(
-        		hashOperations.get("player:" + player, "server"));
-        if (server != null) {
-        	setOperations.remove("server:" + server.getName() + ":usersOnline", player);
-        	setOperations.remove("category:" + server.getCategory().getName() + ":usersOnline", player);
-	        int players;
-	        switch (server.getServerType()) {
-			case DIRECT: case LOBBY:
-				players = rsc.zincrby("category:" + server.getCategory().getName() + ":servers", -1, server.getName()).intValue();
-				server.getCategory().putServer(server, players);
-				break;
-			case GAME:
-				String map = server.getMap();
-				players = rsc.zincrby("category:" + server.getCategory().getName() + ":map:" + map, -1, server.getName()).intValue();
-				((LobbyGameCategoryInfo) server.getCategory()).putGameServer(server.getMap(), server, players);
-				break;
-			default:
-				break;
-	        }
-        }
-        long timestamp = System.currentTimeMillis();
-        hashOperations.put("player:" + player, "online", String.valueOf(timestamp));
-        redisTemplate.convertAndSend("redisbungee-data", RedisBungeeCore.getGson().toJson(new CachedDataManager.DataManagerMessage<>(
-                UUID.fromString(player), CachedDataManager.DataManagerMessage.Action.LEAVE,
-                new CachedDataManager.LogoutPayload(timestamp))));
-    }
+		if (fireEvent) {
+			redisTemplate.convertAndSend("redisbungee-data", RedisBungeeCore.getGson().toJson(new CachedDataManager.DataManagerMessage<>(
+					connection.getUniqueId(), CachedDataManager.DataManagerMessage.Action.JOIN,
+					new CachedDataManager.LoginPayload(connection.getAddress().getAddress()))));
+		}
+	}
 
-    public static boolean canUseLua(String redisVersion) {
-        // Need to use >=2.6 to use Lua optimizations.
-        String[] args = redisVersion.split("\\.");
+	public void cleanUpPlayer(String player) {
+		setOperations.remove("proxy:" + serverInformation.getServerName() + ":usersOnline", player);
+		hashOperations.delete("player:" + player, "server", "ip", "proxy");
+		ServerInfo server = ProxyServer.getInstance().getServerInfo(
+				hashOperations.get("player:" + player, "server"));
+		if (server != null) {
+			setOperations.remove("server:" + server.getName() + ":usersOnline", player);
+//			setOperations.remove("category:" + server.getCategory().getName() + ":usersOnline", player);
 
-        if (args.length < 2) {
-            return false;
-        }
+//			int players;
+//			switch (server.getServerType()) {
+//			case DIRECT: case LOBBY:
+//				players = rsc.zincrby("category:" + server.getCategory().getName() + ":servers", -1, server.getName()).intValue();
+//				server.getCategory().putServer(server, players);
+//				break;
+//			case GAME:
+//				String map = server.getMap();
+//				players = rsc.zincrby("category:" + server.getCategory().getName() + ":map:" + map, -1, server.getName()).intValue();
+//				((LobbyGameCategoryInfo) server.getCategory()).putGameServer(server.getMap(), server, players);
+//				break;
+//			default:
+//				break;
+//			}
+		}
+		long timestamp = System.currentTimeMillis();
+		hashOperations.put("player:" + player, "online", String.valueOf(timestamp));
+		redisTemplate.convertAndSend("redisbungee-data", RedisBungeeCore.getGson().toJson(new CachedDataManager.DataManagerMessage<>(
+				UUID.fromString(player), CachedDataManager.DataManagerMessage.Action.LEAVE,
+				new CachedDataManager.LogoutPayload(timestamp))));
+	}
 
-        int major = Integer.parseInt(args[0]);
-        int minor = Integer.parseInt(args[1]);
+	public static boolean canUseLua(String redisVersion) {
+		// Need to use >=2.6 to use Lua optimizations.
+		String[] args = redisVersion.split("\\.");
 
-        return major >= 3 || (major == 2 && minor >= 6);
-    }
+		if (args.length < 2) {
+			return false;
+		}
+
+		int major = Integer.parseInt(args[0]);
+		int minor = Integer.parseInt(args[1]);
+
+		return major >= 3 || (major == 2 && minor >= 6);
+	}
 }

@@ -44,30 +44,6 @@ import static com.google.common.base.Preconditions.checkArgument;
 public final class RedisBungeeCore {
 	@Getter
 	private static Gson gson = new Gson();
-	private static RedisBungeeAPI api;
-	@Getter(AccessLevel.PACKAGE)
-	private static PubSubListener psl = null;
-	@Getter
-	private UUIDTranslator uuidTranslator;
-	@Getter(AccessLevel.PACKAGE)
-	private static RedisBungeeConfiguration configuration;
-	@Getter
-	private CachedDataManager dataManager;
-	@Getter
-	private static OkHttpClient httpClient;
-
-	/**
-	 * Fetch the {@link RedisBungeeAPI} object created on plugin start.
-	 *
-	 * @return the {@link RedisBungeeAPI} object
-	 */
-	public static RedisBungeeAPI getApi() {
-		return api;
-	}
-
-	static PubSubListener getPubSubListener() {
-		return psl;
-	}
 
 	final void sendProxyCommand(@NonNull String proxyId, @NonNull String command) {
 		checkArgument(getServerIds().contains(proxyId) || proxyId.equals("allservers"), "proxyId is invalid");
@@ -235,63 +211,5 @@ public final class RedisBungeeCore {
 
 		getLogger().log(Level.INFO, "Successfully connected to Redis.");
 
-	}
-
-	@NoArgsConstructor(access = AccessLevel.PRIVATE)
-	class PubSubListener implements Runnable {
-		private JedisPubSubHandler jpsh;
-
-		@Override
-		public void run() {
-			boolean broken = false;
-			try (Jedis rsc = pool.getResource()) {
-				try {
-					jpsh = new JedisPubSubHandler();
-					rsc.subscribe(jpsh, "redisbungee-" + configuration.getServerId(), "redisbungee-allservers", "redisbungee-data");
-				} catch (Exception e) {
-					// FIXME: Extremely ugly hack
-					// Attempt to unsubscribe this instance and try again.
-					getLogger().log(Level.INFO, "PubSub error, attempting to recover.", e);
-					try {
-						jpsh.unsubscribe();
-					} catch (Exception e1) {
-						/* This may fail with
-						- java.net.SocketException: Broken pipe
-						- redis.clients.jedis.exceptions.JedisConnectionException: JedisPubSub was not subscribed to a Jedis instance
-						*/
-					}
-					broken = true;
-				}
-			}
-
-			if (broken) {
-				run();
-			}
-		}
-
-		public void addChannel(String... channel) {
-			jpsh.subscribe(channel);
-		}
-
-		public void removeChannel(String... channel) {
-			jpsh.unsubscribe(channel);
-		}
-
-		public void poison() {
-			jpsh.unsubscribe();
-		}
-	}
-
-	private class JedisPubSubHandler extends JedisPubSub {
-		@Override
-		public void onMessage(final String s, final String s2) {
-			if (s2.trim().length() == 0) return;
-			getProxy().getScheduler().runAsync(RedisBungeeCore.this, new Runnable() {
-				@Override
-				public void run() {
-					getProxy().getPluginManager().callEvent(new PubSubMessageEvent(s, s2));
-				}
-			});
-		}
 	}
 }

@@ -45,7 +45,7 @@ import org.springframework.stereotype.Component;
  * @since 0.3.3
  */
 @Component
-public class CachedDataManager implements Listener {
+public class CachedDataManager {
 
 	@Autowired
 	private RedisBungeeCore plugin;

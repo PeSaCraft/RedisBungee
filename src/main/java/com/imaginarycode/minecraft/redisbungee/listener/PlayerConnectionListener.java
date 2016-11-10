@@ -10,7 +10,6 @@ import org.springframework.stereotype.Component;
 import com.imaginarycode.minecraft.redisbungee.RedisBungee;
 import com.imaginarycode.minecraft.redisbungee.RedisBungeeCore;
 import com.imaginarycode.minecraft.redisbungee.RedisUtil;
-import com.imaginarycode.minecraft.redisbungee.manager.DataManager;
 import com.imaginarycode.minecraft.redisbungee.manager.ServerManager;
 import com.imaginarycode.minecraft.redisbungee.util.RedisCallable;
 import com.imaginarycode.minecraft.redisbungee.util.uuid.UUIDTranslator;
