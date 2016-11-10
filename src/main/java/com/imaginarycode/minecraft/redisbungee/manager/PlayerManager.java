@@ -63,6 +63,10 @@ public class PlayerManager {
 		return builder.build();
 	}
 
+	public final void refreshPlayerCount() {
+		globalPlayerCount.set(getCurrentCount());
+	}
+
 	public final Multimap<String, UUID> serversToPlayers() {
 		try {
 			return serverToPlayersCache.get(SERVER_TO_PLAYERS_KEY, new Callable<Multimap<String, UUID>>() {

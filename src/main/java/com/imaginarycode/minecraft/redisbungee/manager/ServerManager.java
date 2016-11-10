@@ -39,6 +39,10 @@ public class ServerManager {
 		return getServerIds().contains(serverId);
 	}
 
+	public void updateServerIds() {
+		serverIds = getCurrentServerIds(true, false);
+	}
+
 	private List<String> getCurrentServerIds(boolean nag, boolean lagged) {
 		long time = redisServerCommands.time();
 
