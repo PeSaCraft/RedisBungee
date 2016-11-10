@@ -8,6 +8,7 @@ import java.util.logging.Level;
 
 import javax.annotation.Resource;
 
+import org.springframework.beans.factory.InitializingBean;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.connection.RedisServerCommands;
 import org.springframework.data.redis.core.HashOperations;
@@ -23,7 +24,7 @@ import redis.clients.jedis.Jedis;
 import redis.clients.jedis.exceptions.JedisConnectionException;
 
 @Component
-public class ServerManager {
+public class ServerManager implements InitializingBean {
 
 	@Autowired
 	private RedisServerCommands redisServerCommands;
@@ -34,6 +35,11 @@ public class ServerManager {
 	@Getter
 	private volatile List<String> serverIds;
 	private final AtomicInteger nagAboutServers = new AtomicInteger();
+
+	@Override
+	public void afterPropertiesSet() throws Exception {
+		updateServerIds();
+	}
 
 	public boolean existsServer(String serverId) {
 		return getServerIds().contains(serverId);
