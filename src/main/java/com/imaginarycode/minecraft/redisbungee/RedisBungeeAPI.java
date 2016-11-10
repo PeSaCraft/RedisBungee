@@ -5,8 +5,10 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Multimap;
 import com.imaginarycode.minecraft.redisbungee.manager.CachedDataManager;
+import com.imaginarycode.minecraft.redisbungee.manager.MessageListenerManager;
 import com.imaginarycode.minecraft.redisbungee.manager.PlayerManager;
 import com.imaginarycode.minecraft.redisbungee.manager.ServerManager;
+import com.imaginarycode.minecraft.redisbungee.pubsub.RedisBungeeReceiverConfiguration;
 import com.imaginarycode.minecraft.redisbungee.util.uuid.UUIDTranslator;
 
 import de.pesacraft.bungee.core.server.ServerInformation;
@@ -46,6 +48,9 @@ public class RedisBungeeAPI {
 
 	@Autowired
 	private UUIDTranslator uuidTranslator;
+
+	@Autowired
+	private MessageListenerManager messageListenerManager;
 
 	private final List<String> reservedChannels = ImmutableList.of(
 				"redisbungee-allservers",
@@ -237,7 +242,7 @@ public class RedisBungeeAPI {
 	 * @since 0.3
 	 */
 	public final void registerPubSubChannels(String... channels) {
-		RedisBungeeCore.getPubSubListener().addChannel(channels);
+		messageListenerManager.registerChannels(channels);
 	}
 
 	/**
@@ -250,8 +255,7 @@ public class RedisBungeeAPI {
 		for (String channel : channels) {
 			Preconditions.checkArgument(!reservedChannels.contains(channel), "attempting to unregister internal channel");
 		}
-
-		RedisBungeeCore.getPubSubListener().removeChannel(channels);
+		messageListenerManager.unregisterChannels(channels);
 	}
 
 	/**
