@@ -6,6 +6,7 @@ import com.google.common.collect.*;
 import com.google.common.io.ByteStreams;
 import com.google.gson.Gson;
 import com.imaginarycode.minecraft.redisbungee.events.PubSubMessageEvent;
+import com.imaginarycode.minecraft.redisbungee.manager.CachedDataManager;
 import com.imaginarycode.minecraft.redisbungee.util.*;
 import com.imaginarycode.minecraft.redisbungee.util.uuid.NameFetcher;
 import com.imaginarycode.minecraft.redisbungee.util.uuid.UUIDFetcher;
@@ -51,7 +52,7 @@ public final class RedisBungeeCore {
 	@Getter(AccessLevel.PACKAGE)
 	private static RedisBungeeConfiguration configuration;
 	@Getter
-	private DataManager dataManager;
+	private CachedDataManager dataManager;
 	@Getter
 	private static OkHttpClient httpClient;
 
@@ -121,7 +122,7 @@ public final class RedisBungeeCore {
 		serverIds = getCurrentServerIds(true, false);
 		uuidTranslator = new UUIDTranslator(this);
 		heartbeatTask = jkljkj;
-		dataManager = new DataManager(this);
+		dataManager = new CachedDataManager(this);
 		registerCommands();
 		api = new RedisBungeeAPI(this);
 		getProxy().getPluginManager().registerListener(this, new RedisBungeeListener(this, configuration.getExemptAddresses()));
