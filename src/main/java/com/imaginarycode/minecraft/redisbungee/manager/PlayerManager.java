@@ -101,7 +101,7 @@ public class PlayerManager {
 		return count.intValue();
 	}
 
-	private Set<String> getLocalPlayersAsUuidStrings() {
+	public Set<String> getLocalPlayersAsUuidStrings() {
 		ImmutableSet.Builder<String> builder = ImmutableSet.builder();
 		for (ProxiedPlayer player : ProxyServer.getInstance().getPlayers()) {
 			builder.add(player.getUniqueId().toString());

@@ -59,7 +59,7 @@ public class ServerManager implements InitializingBean {
 		serverIds = getCurrentServerIds(true, false);
 	}
 
-	private List<String> getCurrentServerIds(boolean nag, boolean lagged) {
+	public List<String> getCurrentServerIds(boolean nag, boolean lagged) {
 		long time = redisServerCommands.time();
 
 		int nagTime = 0;
