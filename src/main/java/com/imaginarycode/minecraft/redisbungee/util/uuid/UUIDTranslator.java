@@ -3,6 +3,7 @@ package com.imaginarycode.minecraft.redisbungee.util.uuid;
 import com.google.common.base.Charsets;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
+import com.google.gson.Gson;
 import com.imaginarycode.minecraft.redisbungee.RedisBungeeCore;
 import lombok.Getter;
 import lombok.NonNull;
@@ -43,6 +44,9 @@ public final class UUIDTranslator {
 
 	@Autowired
 	private NameFetcher nameFetcher;
+
+	@Autowired
+	private Gson gson;
 
 	private void addToMaps(String name, UUID uuid) {
 		// This is why I like LocalDate...
@@ -96,7 +100,7 @@ public final class UUIDTranslator {
 		String stored = hashOperations.get("uuid-cache", player.toLowerCase());
 		if (stored != null) {
 			// Found an entry value. Deserialize it.
-			CachedUUIDEntry entry = RedisBungeeCore.getGson().fromJson(stored, CachedUUIDEntry.class);
+			CachedUUIDEntry entry = gson.fromJson(stored, CachedUUIDEntry.class);
 
 			// Check for expiry:
 			if (entry.expired()) {
@@ -151,7 +155,7 @@ public final class UUIDTranslator {
 		String stored = hashOperations.get("uuid-cache", player.toString());
 		if (stored != null) {
 			// Found an entry value. Deserialize it.
-			CachedUUIDEntry entry = RedisBungeeCore.getGson().fromJson(stored, CachedUUIDEntry.class);
+			CachedUUIDEntry entry = gson.fromJson(stored, CachedUUIDEntry.class);
 
 			// Check for expiry:
 			if (entry.expired()) {
@@ -189,7 +193,7 @@ public final class UUIDTranslator {
 
 	public final void persistInfo(String name, UUID uuid) {
 		addToMaps(name, uuid);
-		String json = RedisBungeeCore.getGson().toJson(uuidToNameMap.get(uuid));
+		String json = gson.toJson(uuidToNameMap.get(uuid));
 		hashOperations.putAll("uuid-cache", ImmutableMap.of(name.toLowerCase(), json, uuid.toString(), json));
 	}
 

@@ -2,6 +2,7 @@ package com.imaginarycode.minecraft.redisbungee.util.uuid;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.net.MediaType;
+import com.google.gson.Gson;
 import com.imaginarycode.minecraft.redisbungee.RedisBungeeCore;
 import lombok.Setter;
 
@@ -33,6 +34,9 @@ public class UUIDFetcher {
 	@Autowired
 	private UUIDTranslator uuidTranslator;
 
+	@Autowired
+	private Gson gson;
+
 	public Map<String, UUID> getUUIDs(List<String> names, boolean rateLimiting) {
 		RestTemplate restTemplate = new RestTemplate();
 
@@ -58,7 +62,7 @@ public class UUIDFetcher {
 		Map<String, UUID> uuidMap = new HashMap<>();
 		int requests = (int) Math.ceil(names.size() / PROFILES_PER_REQUEST);
 		for (int i = 0; i < requests; i++) {
-			String body = RedisBungeeCore.getGson().toJson(names.subList(i * 100, Math.min((i + 1) * 100, names.size())));
+			String body = gson.toJson(names.subList(i * 100, Math.min((i + 1) * 100, names.size())));
 			Profile[] profiles = restTemplate.postForObject(PROFILE_URL, body, Profile[].class);
 
 			for (Profile profile : profiles) {

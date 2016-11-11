@@ -8,12 +8,12 @@ import org.springframework.data.redis.core.HashOperations;
 import org.springframework.data.redis.core.SetOperations;
 import org.springframework.stereotype.Component;
 
+import com.google.gson.Gson;
 import com.imaginarycode.minecraft.redisbungee.RedisBungee;
 import com.imaginarycode.minecraft.redisbungee.RedisBungeeCore;
 import com.imaginarycode.minecraft.redisbungee.RedisUtil;
 import com.imaginarycode.minecraft.redisbungee.manager.CachedDataManager;
 import com.imaginarycode.minecraft.redisbungee.manager.ServerManager;
-import com.imaginarycode.minecraft.redisbungee.util.RedisCallable;
 import com.imaginarycode.minecraft.redisbungee.util.uuid.UUIDTranslator;
 
 import de.pesacraft.shares.config.CustomRedisTemplate;
@@ -70,6 +70,9 @@ public class PlayerConnectionListener implements Listener, InitializingBean {
 
 	@Autowired
 	private CachedDataManager cachedDataManager;
+
+	@Autowired
+	private Gson gson;
 
 	@Override
 	public void afterPropertiesSet() throws Exception {
@@ -164,7 +167,7 @@ public class PlayerConnectionListener implements Listener, InitializingBean {
 //				default:
 //					break;
 //				}
-				redisTemplate.convertAndSend("redisbungee-data", RedisBungeeCore.getGson().toJson(new CachedDataManager.DataManagerMessage<>(
+				redisTemplate.convertAndSend("redisbungee-data", gson.toJson(new CachedDataManager.DataManagerMessage<>(
 						event.getPlayer().getUniqueId(), CachedDataManager.DataManagerMessage.Action.SERVER_CHANGE,
 						new CachedDataManager.ServerChangePayload(newServerName, null))));
 			});
@@ -212,7 +215,7 @@ public class PlayerConnectionListener implements Listener, InitializingBean {
 //				default:
 //					break;
 //				}
-				redisTemplate.convertAndSend("redisbungee-data", RedisBungeeCore.getGson().toJson(new CachedDataManager.DataManagerMessage<>(
+				redisTemplate.convertAndSend("redisbungee-data", gson.toJson(new CachedDataManager.DataManagerMessage<>(
 						event.getPlayer().getUniqueId(), CachedDataManager.DataManagerMessage.Action.SERVER_CHANGE,
 						new CachedDataManager.ServerChangePayload(newServerName, currentServerName))));
 			});

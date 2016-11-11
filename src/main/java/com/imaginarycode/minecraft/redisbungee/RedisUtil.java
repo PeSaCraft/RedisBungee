@@ -1,6 +1,7 @@
 package com.imaginarycode.minecraft.redisbungee;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.gson.Gson;
 import com.imaginarycode.minecraft.redisbungee.manager.CachedDataManager;
 
 import de.pesacraft.bungee.core.server.ServerInformation;
@@ -42,6 +43,9 @@ public class RedisUtil {
 	@Autowired
 	private ServerInformation serverInformation;
 
+	@Autowired
+	private Gson gson;
+
 	public void createPlayer(ProxiedPlayer player, boolean fireEvent) {
 		createPlayer(player.getPendingConnection(), fireEvent);
 		if (player.getServer() != null) {
@@ -82,7 +86,7 @@ public class RedisUtil {
 		hashOperations.putAll("player:" + connection.getUniqueId().toString(), playerData);
 
 		if (fireEvent) {
-			redisTemplate.convertAndSend("redisbungee-data", RedisBungeeCore.getGson().toJson(new CachedDataManager.DataManagerMessage<>(
+			redisTemplate.convertAndSend("redisbungee-data", gson.toJson(new CachedDataManager.DataManagerMessage<>(
 					connection.getUniqueId(), CachedDataManager.DataManagerMessage.Action.JOIN,
 					new CachedDataManager.LoginPayload(connection.getAddress().getAddress()))));
 		}
@@ -114,7 +118,7 @@ public class RedisUtil {
 		}
 		long timestamp = System.currentTimeMillis();
 		hashOperations.put("player:" + player, "online", String.valueOf(timestamp));
-		redisTemplate.convertAndSend("redisbungee-data", RedisBungeeCore.getGson().toJson(new CachedDataManager.DataManagerMessage<>(
+		redisTemplate.convertAndSend("redisbungee-data", gson.toJson(new CachedDataManager.DataManagerMessage<>(
 				UUID.fromString(player), CachedDataManager.DataManagerMessage.Action.LEAVE,
 				new CachedDataManager.LogoutPayload(timestamp))));
 	}

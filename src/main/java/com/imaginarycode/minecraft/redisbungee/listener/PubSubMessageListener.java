@@ -4,6 +4,7 @@ import org.springframework.beans.factory.InitializingBean;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
+import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.google.gson.reflect.TypeToken;
@@ -40,6 +41,9 @@ public class PubSubMessageListener implements Listener, InitializingBean {
 	@Autowired
 	private RedisBungeeCommandSender redisBungeeCommandSender;
 
+	@Autowired
+	private Gson gson;
+
 	private final JsonParser parser = new JsonParser();
 
 	@Override
@@ -75,19 +79,19 @@ public class PubSubMessageListener implements Listener, InitializingBean {
 
 		switch (action) {
 			case JOIN:
-				final DataManagerMessage<LoginPayload> message1 = RedisBungeeCore.getGson().fromJson(jsonObject, new TypeToken<DataManagerMessage<LoginPayload>>(){}.getType());
+				final DataManagerMessage<LoginPayload> message1 = gson.fromJson(jsonObject, new TypeToken<DataManagerMessage<LoginPayload>>(){}.getType());
 
 				cachedDataManager.playerJoined(message1.getTarget(), message1.getSource(), message1.getPayload().getAddress());
 				callEvent(new PlayerJoinedNetworkEvent(message1.getTarget()));
 				break;
 			case LEAVE:
-				final DataManagerMessage<LogoutPayload> message2 = RedisBungeeCore.getGson().fromJson(jsonObject, new TypeToken<DataManagerMessage<LogoutPayload>>(){}.getType());
+				final DataManagerMessage<LogoutPayload> message2 = gson.fromJson(jsonObject, new TypeToken<DataManagerMessage<LogoutPayload>>(){}.getType());
 
 				cachedDataManager.playerLeft(message2.getTarget(), message2.getPayload().getTimestamp());
 				callEvent(new PlayerLeftNetworkEvent(message2.getTarget()));
 				break;
 			case SERVER_CHANGE:
-				final DataManagerMessage<ServerChangePayload> message3 = RedisBungeeCore.getGson().fromJson(jsonObject, new TypeToken<DataManagerMessage<ServerChangePayload>>(){}.getType());
+				final DataManagerMessage<ServerChangePayload> message3 = gson.fromJson(jsonObject, new TypeToken<DataManagerMessage<ServerChangePayload>>(){}.getType());
 
 				cachedDataManager.playerSwitchedServer(message3.getTarget(), message3.getPayload().getServer());
 				callEvent(new PlayerChangedServerNetworkEvent(message3.getTarget(), message3.getPayload().getOldServer(), message3.getPayload().getServer()));
