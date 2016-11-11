@@ -4,6 +4,7 @@ import com.google.common.base.Charsets;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
 import com.google.gson.Gson;
+import com.imaginarycode.minecraft.redisbungee.RedisBungee;
 import com.imaginarycode.minecraft.redisbungee.RedisBungeeCore;
 import lombok.Getter;
 import lombok.NonNull;
@@ -34,7 +35,7 @@ public final class UUIDTranslator {
 	private final Map<UUID, CachedUUIDEntry> uuidToNameMap = new ConcurrentHashMap<>(128, 0.5f, 4);
 
 	@Autowired
-	private RedisBungeeCore plugin;
+	private RedisBungee plugin;
 
 	@Resource(name = "redisTemplate")
 	private HashOperations<String, String, String> hashOperations;

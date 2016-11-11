@@ -186,7 +186,7 @@ public class RedisBungeeAPI {
 	 * @since 0.2.5
 	 */
 	public final void sendProxyCommand(@NonNull String command) {
-		plugin.sendProxyCommand("allservers", command);
+		serverManager.sendProxyCommand("allservers", command);
 	}
 
 	/**
@@ -199,7 +199,7 @@ public class RedisBungeeAPI {
 	 * @since 0.2.5
 	 */
 	public final void sendProxyCommand(@NonNull String proxyId, @NonNull String command) {
-		plugin.sendProxyCommand(proxyId, command);
+		serverManager.sendProxyCommand(proxyId, command);
 	}
 
 	/**
@@ -210,7 +210,7 @@ public class RedisBungeeAPI {
 	 * @since 0.3.3
 	 */
 	public final void sendChannelMessage(@NonNull String channel, @NonNull String message) {
-		plugin.sendChannelMessage(channel, message);
+		serverManager.sendChannelMessage(channel, message);
 	}
 
 	/**

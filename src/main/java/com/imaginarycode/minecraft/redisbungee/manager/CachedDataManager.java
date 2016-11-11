@@ -7,6 +7,7 @@ import com.google.common.util.concurrent.UncheckedExecutionException;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.google.gson.reflect.TypeToken;
+import com.imaginarycode.minecraft.redisbungee.RedisBungee;
 import com.imaginarycode.minecraft.redisbungee.RedisBungeeCore;
 import com.imaginarycode.minecraft.redisbungee.events.PlayerChangedServerNetworkEvent;
 import com.imaginarycode.minecraft.redisbungee.events.PlayerJoinedNetworkEvent;
@@ -48,7 +49,7 @@ import org.springframework.stereotype.Component;
 public class CachedDataManager {
 
 	@Autowired
-	private RedisBungeeCore plugin;
+	private RedisBungee plugin;
 
 	@Resource(name = "redisTemplate")
 	private HashOperations<String, String, String> hashOperations;
@@ -185,7 +186,7 @@ public class CachedDataManager {
 	@RequiredArgsConstructor
 	public static class DataManagerMessage<T> {
 		private final UUID target;
-		private final String source = RedisBungeeCore.getApi().getServerId();
+		private final String source = RedisBungee.getApi().getServerId();
 		private final Action action; // for future use!
 		private final T payload;
 
