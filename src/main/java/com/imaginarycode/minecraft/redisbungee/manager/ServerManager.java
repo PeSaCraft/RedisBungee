@@ -1,5 +1,7 @@
 package com.imaginarycode.minecraft.redisbungee.manager;
 
+import static com.google.common.base.Preconditions.checkArgument;
+
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -17,9 +19,11 @@ import org.springframework.data.redis.core.SetOperations;
 import org.springframework.stereotype.Component;
 
 import com.google.common.collect.ImmutableList;
+import com.imaginarycode.minecraft.redisbungee.RedisBungee;
 
 import de.pesacraft.shares.config.CustomRedisTemplate;
 import lombok.Getter;
+import lombok.NonNull;
 import redis.clients.jedis.Jedis;
 import redis.clients.jedis.exceptions.JedisConnectionException;
 
@@ -27,7 +31,13 @@ import redis.clients.jedis.exceptions.JedisConnectionException;
 public class ServerManager implements InitializingBean {
 
 	@Autowired
+	private RedisBungee plugin;
+
+	@Autowired
 	private RedisServerCommands redisServerCommands;
+
+	@Autowired
+	private CustomRedisTemplate redisTemplate;
 
 	@Resource(name = "redisTemplate")
 	private HashOperations<String, String, String> hashOperations;
@@ -70,12 +80,21 @@ public class ServerManager implements InitializingBean {
 				if (lagged ? time >= stamp + 30 : time <= stamp + 30)
 					servers.add(entry.getKey());
 				else if (nag && nagTime <= 0) {
-					getLogger().severe(entry.getKey() + " is " + (time - stamp) + " seconds behind! (Time not synchronized or server down?)");
+					plugin.getLogger().severe(entry.getKey() + " is " + (time - stamp) + " seconds behind! (Time not synchronized or server down?)");
 				}
 			} catch (NumberFormatException ignored) {
 			}
 		}
 		return servers.build();
 
+	}
+
+	public final void sendProxyCommand(@NonNull String proxyId, @NonNull String command) {
+		checkArgument(getServerIds().contains(proxyId) || proxyId.equals("allservers"), "proxyId is invalid");
+		sendChannelMessage("redisbungee-" + proxyId, command);
+	}
+
+	public final void sendChannelMessage(String channel, String message) {
+		redisTemplate.convertAndSend(channel, message);
 	}
 }
