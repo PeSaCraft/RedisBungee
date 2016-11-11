@@ -27,6 +27,7 @@ import net.md_5.bungee.config.Configuration;
 import net.md_5.bungee.config.ConfigurationProvider;
 import net.md_5.bungee.config.YamlConfiguration;
 import net.md_5.bungee.event.EventHandler;
+import net.md_5.bungee.event.EventPriority;
 import redis.clients.jedis.*;
 import redis.clients.jedis.exceptions.JedisConnectionException;
 
@@ -70,9 +71,13 @@ public final class RedisBungee extends Plugin implements Listener {
 		event.addClassesToLoad(RedisBungeeCore.class);
 	}
 
-	@EventHandler
+	@EventHandler(priority = EventPriority.LOWEST)
 	public void onSpringContextInitialized(SpringContextStartedEvent event) {
 		context = event.getApplicationContext();
+
+		registerCommands();
+
+		getProxy().registerChannel("RedisBungee");
 	}
 
 	public void registerCommands() {
