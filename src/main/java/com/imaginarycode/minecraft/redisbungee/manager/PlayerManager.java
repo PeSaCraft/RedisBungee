@@ -18,6 +18,7 @@ import javax.annotation.Resource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.HashOperations;
 import org.springframework.data.redis.core.SetOperations;
+import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.stereotype.Component;
 
 import com.google.common.cache.Cache;
@@ -26,14 +27,17 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMultimap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Multimap;
-import com.imaginarycode.minecraft.redisbungee.util.LuaManager;
 
+import de.pesacraft.shares.config.CustomRedisTemplate;
 import lombok.NonNull;
 import net.md_5.bungee.api.ProxyServer;
 import net.md_5.bungee.api.connection.ProxiedPlayer;
 
 @Component
 public class PlayerManager {
+
+	@Autowired
+	private CustomRedisTemplate redisTemplate;
 
 	@Resource(name = "redisTemplate")
 	private SetOperations<String, String> setOperations;
@@ -42,8 +46,9 @@ public class PlayerManager {
 	private ServerManager serverManager;
 
 	private final AtomicInteger globalPlayerCount = new AtomicInteger();
-	private boolean usingLua;
-	private LuaManager.Script getPlayerCountScript;
+
+	@Autowired
+	private RedisScript<Long> playerCountScript;
 
 	private static final Object SERVER_TO_PLAYERS_KEY = new Object();
 	private final Cache<Object, Multimap<String, UUID>> serverToPlayersCache = CacheBuilder.newBuilder()
@@ -92,7 +97,7 @@ public class PlayerManager {
 	}
 
 	final int getCurrentCount() {
-		Long count = (Long) getPlayerCountScript.eval(ImmutableList.<String>of(), ImmutableList.<String>of());
+		Long count = redisTemplate.execute(playerCountScript, ImmutableList.<String>of(), ImmutableList.<String>of());
 		return count.intValue();
 	}
 

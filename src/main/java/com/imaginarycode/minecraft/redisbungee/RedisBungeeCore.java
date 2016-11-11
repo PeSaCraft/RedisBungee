@@ -33,11 +33,14 @@ import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Level;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.aspectj.EnableSpringConfigured;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
+import org.springframework.data.redis.core.script.RedisScript;
 
 import static com.google.common.base.Preconditions.checkArgument;
 
@@ -56,56 +59,21 @@ public final class RedisBungeeCore {
 	public RedisBungee redisBungee() {
 		return (RedisBungee) ProxyServer.getInstance().getPluginManager().getPlugin("RedisBungee");
 	}
+
 	@Bean
 	public Gson gson() {
 		return new Gson();
 	}
 
-	@Override
-	public void onEnable() {
-		File crashFile = new File(getDataFolder(), "restarted_from_crash.txt");
-		if (crashFile.exists()) {
-			crashFile.delete();
-		} else if (rsc.hexists("heartbeats", serverId)) {
-			try {
-				long value = Long.parseLong(rsc.hget("heartbeats", serverId));
-				if (System.currentTimeMillis() < value + 20000) {
-					getLogger().severe("You have launched a possible impostor BungeeCord instance. Another instance is already running.");
-					getLogger().severe("For data consistency reasons, RedisBungee will now disable itself.");
-					getLogger().severe("If this instance is coming up from a crash, create a file in your RedisBungee plugins directory with the name 'restarted_from_crash.txt' and RedisBungee will not perform this check.");
-					throw new RuntimeException("Possible impostor instance!");
-				}
-			} catch (NumberFormatException ignored) {
-			}
-		}
+	@Bean
+	public RedisScript<Long> playerCountScript(@Autowired RedisBungee plugin) {
+		DefaultRedisScript<Long> script = new DefaultRedisScript<>();
+		script.setScriptText(
+				IOUtil.readInputStreamAsString(
+						plugin.getResourceAsStream("lua/get_player_count.lua")));
 
-		try (Jedis tmpRsc = pool.getResource()) {
-			// This is more portable than INFO <section>
-			String info = tmpRsc.info();
-			for (String s : info.split("\r\n")) {
-				if (s.startsWith("redis_version:")) {
-					String version = s.split(":")[1];
-					if (!(usingLua = RedisUtil.canUseLua(version))) {
-						getLogger().warning("Your version of Redis (" + version + ") is not at least version 2.6. RedisBungee requires a newer version of Redis.");
-						throw new RuntimeException("Unsupported Redis version detected");
-					} else {
-						LuaManager manager = new LuaManager(this);
-						getPlayerCountScript = manager.createScript(IOUtil.readInputStreamAsString(getResourceAsStream("lua/get_player_count.lua")));
-					}
-					break;
-				}
-			}
+		script.setResultType(Long.class);
 
-			tmpRsc.hset("heartbeats", configuration.getServerId(), String.valueOf(System.currentTimeMillis()));
-
-			long uuidCacheSize = tmpRsc.hlen("uuid-cache");
-			if (uuidCacheSize > 750000) {
-				getLogger().info("Looks like you have a really big UUID cache! Run https://www.spigotmc.org/resources/redisbungeecleaner.8505/ as soon as possible.");
-			}
-		}
-
-		registerCommands();
-
-		getProxy().registerChannel("RedisBungee");
+		return script;
 	}
 }
