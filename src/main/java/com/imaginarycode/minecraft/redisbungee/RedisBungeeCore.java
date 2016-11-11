@@ -11,8 +11,8 @@ import com.imaginarycode.minecraft.redisbungee.util.*;
 import com.imaginarycode.minecraft.redisbungee.util.uuid.NameFetcher;
 import com.imaginarycode.minecraft.redisbungee.util.uuid.UUIDFetcher;
 import com.imaginarycode.minecraft.redisbungee.util.uuid.UUIDTranslator;
-import com.squareup.okhttp.Dispatcher;
-import com.squareup.okhttp.OkHttpClient;
+
+import de.pesacraft.bungee.core.PeSaCraftBungeeCore;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -21,7 +21,6 @@ import net.md_5.bungee.api.ProxyServer;
 import net.md_5.bungee.api.connection.ProxiedPlayer;
 import net.md_5.bungee.api.plugin.Plugin;
 import net.md_5.bungee.api.scheduler.ScheduledTask;
-import net.md_5.bungee.config.Configuration;
 import net.md_5.bungee.config.ConfigurationProvider;
 import net.md_5.bungee.config.YamlConfiguration;
 import redis.clients.jedis.*;
@@ -34,6 +33,12 @@ import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Level;
 
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.ComponentScan;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Import;
+import org.springframework.context.annotation.aspectj.EnableSpringConfigured;
+
 import static com.google.common.base.Preconditions.checkArgument;
 
 /**
@@ -41,34 +46,37 @@ import static com.google.common.base.Preconditions.checkArgument;
  * <p>
  * The only function of interest is {@link #getApi()}, which exposes some functions in this class.
  */
+@Configuration
+@ComponentScan
+@EnableSpringConfigured
+@Import(PeSaCraftBungeeCore.class)
 public final class RedisBungeeCore {
-	@Getter
-	private static Gson gson = new Gson();
 
-	final void sendProxyCommand(@NonNull String proxyId, @NonNull String command) {
-		checkArgument(getServerIds().contains(proxyId) || proxyId.equals("allservers"), "proxyId is invalid");
-		sendChannelMessage("redisbungee-" + proxyId, command);
+	@Bean
+	public RedisBungee redisBungee() {
+		return (RedisBungee) ProxyServer.getInstance().getPluginManager().getPlugin("RedisBungee");
 	}
-
-	final void sendChannelMessage(String channel, String message) {
-		try (Jedis jedis = pool.getResource()) {
-			jedis.publish(channel, message);
-		} catch (JedisConnectionException e) {
-			// Redis server has disappeared!
-			getLogger().log(Level.SEVERE, "Unable to get connection from pool - did your Redis server go away?", e);
-			throw new RuntimeException("Unable to publish channel message", e);
-		}
+	@Bean
+	public Gson gson() {
+		return new Gson();
 	}
 
 	@Override
 	public void onEnable() {
-
-		try {
-			loadConfig();
-		} catch (IOException e) {
-			throw new RuntimeException("Unable to load/save config", e);
-		} catch (JedisConnectionException e) {
-			throw new RuntimeException("Unable to connect to your Redis server!", e);
+		File crashFile = new File(getDataFolder(), "restarted_from_crash.txt");
+		if (crashFile.exists()) {
+			crashFile.delete();
+		} else if (rsc.hexists("heartbeats", serverId)) {
+			try {
+				long value = Long.parseLong(rsc.hget("heartbeats", serverId));
+				if (System.currentTimeMillis() < value + 20000) {
+					getLogger().severe("You have launched a possible impostor BungeeCord instance. Another instance is already running.");
+					getLogger().severe("For data consistency reasons, RedisBungee will now disable itself.");
+					getLogger().severe("If this instance is coming up from a crash, create a file in your RedisBungee plugins directory with the name 'restarted_from_crash.txt' and RedisBungee will not perform this check.");
+					throw new RuntimeException("Possible impostor instance!");
+				}
+			} catch (NumberFormatException ignored) {
+			}
 		}
 
 		try (Jedis tmpRsc = pool.getResource()) {
@@ -95,121 +103,9 @@ public final class RedisBungeeCore {
 				getLogger().info("Looks like you have a really big UUID cache! Run https://www.spigotmc.org/resources/redisbungeecleaner.8505/ as soon as possible.");
 			}
 		}
-		serverIds = getCurrentServerIds(true, false);
-		uuidTranslator = new UUIDTranslator(this);
-		heartbeatTask = jkljkj;
-		dataManager = new CachedDataManager(this);
-		registerCommands();
-		api = new RedisBungeeAPI(this);
-		getProxy().getPluginManager().registerListener(this, new RedisBungeeListener(this, configuration.getExemptAddresses()));
-		getProxy().getPluginManager().registerListener(this, dataManager);
-		psl = new PubSubListener();
-		getProxy().getScheduler().runAsync(this, psl);
-		integrityCheck = mjkl;
 
+		registerCommands();
 
 		getProxy().registerChannel("RedisBungee");
-	}
-
-	@Override
-	public void onDisable() {
-		if (pool != null) {
-			// Poison the PubSub listener
-			psl.poison();
-			integrityCheck.cancel(true);
-			heartbeatTask.cancel(true);
-			getProxy().getPluginManager().unregisterListeners(this);
-
-			try (Jedis tmpRsc = pool.getResource()) {
-				tmpRsc.hdel("heartbeats", configuration.getServerId());
-				if (tmpRsc.scard("proxy:" + configuration.getServerId() + ":usersOnline") > 0) {
-					Set<String> players = tmpRsc.smembers("proxy:" + configuration.getServerId() + ":usersOnline");
-					for (String member : players)
-						RedisUtil.cleanUpPlayer(member, tmpRsc);
-				}
-			}
-
-			pool.destroy();
-		}
-	}
-
-	private void registerCommands() {
-		if (configuration.isRegisterBungeeCommands()) {
-			getProxy().getPluginManager().registerCommand(this, new RedisBungeeCommands.GlistCommand(this));
-			getProxy().getPluginManager().registerCommand(this, new RedisBungeeCommands.FindCommand(this));
-			getProxy().getPluginManager().registerCommand(this, new RedisBungeeCommands.LastSeenCommand(this));
-			getProxy().getPluginManager().registerCommand(this, new RedisBungeeCommands.IpCommand(this));
-		}
-
-		getProxy().getPluginManager().registerCommand(this, new RedisBungeeCommands.SendToAll(this));
-		getProxy().getPluginManager().registerCommand(this, new RedisBungeeCommands.ServerId(this));
-		getProxy().getPluginManager().registerCommand(this, new RedisBungeeCommands.ServerIds());
-		getProxy().getPluginManager().registerCommand(this, new RedisBungeeCommands.PlayerProxyCommand(this));
-		getProxy().getPluginManager().registerCommand(this, new RedisBungeeCommands.PlistCommand(this));
-		getProxy().getPluginManager().registerCommand(this, new RedisBungeeCommands.DebugCommand(this));
-
-	}
-
-	private void loadConfig() throws IOException, JedisConnectionException {
-		if (!getDataFolder().exists()) {
-			getDataFolder().mkdir();
-		}
-
-		File file = new File(getDataFolder(), "config.yml");
-
-		if (!file.exists()) {
-			file.createNewFile();
-			try (InputStream in = getResourceAsStream("example_config.yml");
-				 OutputStream out = new FileOutputStream(file)) {
-				ByteStreams.copy(in, out);
-			}
-		}
-
-		final Configuration configuration = ConfigurationProvider.getProvider(YamlConfiguration.class).load(file);
-
-		String serverId = configuration.getString("server-id");
-
-		// Configuration sanity checks.
-		if (serverId == null || serverId.isEmpty()) {
-			throw new RuntimeException("server-id is not specified in the configuration or is empty");
-		}
-
-		// Test the connection
-		rsc.ping();
-		// If that worked, now we can check for an existing, alive Bungee:
-		File crashFile = new File(getDataFolder(), "restarted_from_crash.txt");
-		if (crashFile.exists()) {
-			crashFile.delete();
-		} else if (rsc.hexists("heartbeats", serverId)) {
-			try {
-				long value = Long.parseLong(rsc.hget("heartbeats", serverId));
-				if (System.currentTimeMillis() < value + 20000) {
-					getLogger().severe("You have launched a possible impostor BungeeCord instance. Another instance is already running.");
-					getLogger().severe("For data consistency reasons, RedisBungee will now disable itself.");
-					getLogger().severe("If this instance is coming up from a crash, create a file in your RedisBungee plugins directory with the name 'restarted_from_crash.txt' and RedisBungee will not perform this check.");
-					throw new RuntimeException("Possible impostor instance!");
-				}
-			} catch (NumberFormatException ignored) {
-			}
-		}
-
-		FutureTask<Void> task2 = new FutureTask<>(new Callable<Void>() {
-			@Override
-			public Void call() throws Exception {
-				RedisBungeeCore.configuration = new RedisBungeeConfiguration(RedisBungeeCore.this.getPool(), configuration);
-				return null;
-			}
-		});
-
-		getProxy().getScheduler().runAsync(this, task2);
-
-		try {
-			task2.get();
-		} catch (InterruptedException | ExecutionException e) {
-			throw new RuntimeException("Unable to create HTTP client", e);
-		}
-
-		getLogger().log(Level.INFO, "Successfully connected to Redis.");
-
 	}
 }
