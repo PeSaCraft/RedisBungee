@@ -16,7 +16,6 @@ import com.imaginarycode.minecraft.redisbungee.events.PubSubMessageEvent;
 import com.imaginarycode.minecraft.redisbungee.manager.CachedDataManager;
 import com.imaginarycode.minecraft.redisbungee.manager.PlayerManager;
 import com.imaginarycode.minecraft.redisbungee.manager.ServerManager;
-import com.imaginarycode.minecraft.redisbungee.util.RedisCallable;
 import com.imaginarycode.minecraft.redisbungee.util.uuid.UUIDTranslator;
 
 import de.pesacraft.bungee.core.server.ServerInformation;
