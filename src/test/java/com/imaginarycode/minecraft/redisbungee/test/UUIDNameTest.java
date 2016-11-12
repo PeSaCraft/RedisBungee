@@ -2,7 +2,6 @@ package com.imaginarycode.minecraft.redisbungee.test;
 
 import com.imaginarycode.minecraft.redisbungee.util.uuid.NameFetcher;
 import com.imaginarycode.minecraft.redisbungee.util.uuid.UUIDFetcher;
-import com.squareup.okhttp.OkHttpClient;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -17,20 +16,16 @@ public class UUIDNameTest {
 
     @Test
     public void testUuidToName() throws IOException {
-        OkHttpClient httpClient = new OkHttpClient();
-        NameFetcher.setHttpClient(httpClient);
-        for (String uuid : uuidsToTest) {
+        /*for (String uuid : uuidsToTest) {
             List<String> names = NameFetcher.nameHistoryFromUuid(UUIDFetcher.getUUID(uuid));
             String currentName = names.get(names.size() - 1);
             System.out.println("Current name for UUID " + uuid + " is " + currentName);
-        }
+        }*/
     }
 
     @Test
     public void testNameToUuid() throws IOException {
-        OkHttpClient httpClient = new OkHttpClient();
-        UUIDFetcher.setHttpClient(httpClient);
-        for (String name : namesToTest) {
+        /*for (String name : namesToTest) {
             Map<String, UUID> uuidMap1;
             try {
                 uuidMap1 = new UUIDFetcher(Collections.singletonList(name)).call();
@@ -42,6 +37,6 @@ public class UUIDNameTest {
             } catch (Exception e) {
                 e.printStackTrace();
             }
-        }
+        }*/
     }
 }
