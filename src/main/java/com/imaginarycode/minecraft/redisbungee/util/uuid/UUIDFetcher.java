@@ -38,8 +38,6 @@ public class UUIDFetcher {
 	private Gson gson;
 
 	public Map<String, UUID> getUUIDs(List<String> names, boolean rateLimiting) {
-		RestTemplate restTemplate = new RestTemplate();
-
 		List<HttpMessageConverter<?>> messageConverters = new ArrayList<>();
 		messageConverters.add(new FormHttpMessageConverter());
 		messageConverters.add(new StringHttpMessageConverter());
