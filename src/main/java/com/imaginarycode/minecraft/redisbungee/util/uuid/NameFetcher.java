@@ -9,6 +9,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.client.HttpComponentsClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClientException;
@@ -18,7 +19,8 @@ import org.springframework.web.client.RestTemplate;
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class NameFetcher {
 
-	private RestTemplate restTemplate = new RestTemplate(new HttpComponentsClientHttpRequestFactory());
+	@Autowired
+	private RestTemplate restTemplate;
 
     public List<String> nameHistoryFromUuid(UUID uuid) throws RestClientException {
 		NameList res = restTemplate.getForObject(

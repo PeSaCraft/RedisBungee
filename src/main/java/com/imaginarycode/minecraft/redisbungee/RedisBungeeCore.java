@@ -13,6 +13,7 @@ import com.imaginarycode.minecraft.redisbungee.util.uuid.UUIDFetcher;
 import com.imaginarycode.minecraft.redisbungee.util.uuid.UUIDTranslator;
 
 import de.pesacraft.bungee.core.PeSaCraftBungeeCore;
+import de.pesacraft.bungee.core.SpringContext;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -41,19 +42,18 @@ import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.aspectj.EnableSpringConfigured;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.data.redis.core.script.RedisScript;
+import org.springframework.data.web.config.EnableSpringDataWebSupport;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
+import org.springframework.web.client.RestTemplate;
 
 import static com.google.common.base.Preconditions.checkArgument;
 
-/**
- * The RedisBungee plugin.
- * <p>
- * The only function of interest is {@link #getApi()}, which exposes some functions in this class.
- */
 @Configuration
 @ComponentScan
 @EnableSpringConfigured
-@Import(PeSaCraftBungeeCore.class)
-public final class RedisBungeeCore {
+@EnableSpringDataWebSupport
+@Import(SpringContext.class)
+public class RedisBungeeCore {
 
 	@Bean
 	public RedisBungee redisBungee() {
@@ -63,6 +63,11 @@ public final class RedisBungeeCore {
 	@Bean
 	public Gson gson() {
 		return new Gson();
+	}
+
+	@Bean
+	public RestTemplate restTemplate() {
+		return new RestTemplate(new SimpleClientHttpRequestFactory());
 	}
 
 	@Bean

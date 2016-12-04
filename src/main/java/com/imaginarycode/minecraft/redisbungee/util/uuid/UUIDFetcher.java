@@ -14,7 +14,6 @@ import java.util.UUID;
 import java.util.concurrent.Callable;
 
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.client.HttpComponentsClientHttpRequestFactory;
 import org.springframework.http.converter.FormHttpMessageConverter;
 import org.springframework.http.converter.HttpMessageConverter;
 import org.springframework.http.converter.StringHttpMessageConverter;
@@ -29,7 +28,8 @@ public class UUIDFetcher {
 	private static final String PROFILE_URL = "https://api.mojang.com/profiles/minecraft";
 	private static final MediaType JSON = MediaType.parse("application/json");
 
-	private final RestTemplate restTemplate = new RestTemplate(new HttpComponentsClientHttpRequestFactory());
+	@Autowired
+	private RestTemplate restTemplate;
 
 	@Autowired
 	private UUIDTranslator uuidTranslator;
