@@ -19,20 +19,18 @@ import net.md_5.bungee.api.config.ServerInfo;
 import java.net.InetAddress;
 import java.util.*;
 
+import org.springframework.beans.factory.InitializingBean;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 /**
- * This class exposes some internal RedisBungee functions. You obtain an instance of this object by invoking {@link RedisBungeeCore#getApi()}.
+ * This class exposes some internal RedisBungee functions. You obtain an instance of this object by invoking {@link RedisBungee#getApi()}.
  *
  * @author tuxed
  * @since 0.2.3
  */
 @Service
-public class RedisBungeeAPI {
-
-	@Autowired
-	private RedisBungeeCore plugin;
+public class RedisBungeeAPI implements InitializingBean {
 
 	@Autowired
 	private PlayerManager playerManager;
@@ -52,11 +50,16 @@ public class RedisBungeeAPI {
 	@Autowired
 	private MessageListenerManager messageListenerManager;
 
-	private final List<String> reservedChannels = ImmutableList.of(
+	private List<String> reservedChannels;
+
+	@Override
+	public void afterPropertiesSet() throws Exception {
+		reservedChannels = ImmutableList.of(
 				"redisbungee-allservers",
 				"redisbungee-" + serverInformation.getServerName(),
 				"redisbungee-data"
 		);
+	}
 
 	/**
 	 * Get a combined count of all players on this network.
