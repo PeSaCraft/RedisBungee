@@ -12,6 +12,7 @@ import javax.annotation.Resource;
 
 import org.springframework.beans.factory.InitializingBean;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.connection.RedisConnection;
 import org.springframework.data.redis.connection.RedisServerCommands;
 import org.springframework.data.redis.core.HashOperations;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -32,9 +33,6 @@ public class ServerManager implements InitializingBean {
 
 	@Autowired
 	private RedisBungee plugin;
-
-	@Autowired
-	private RedisServerCommands redisServerCommands;
 
 	@Autowired
 	private CustomRedisTemplate redisTemplate;
@@ -60,7 +58,7 @@ public class ServerManager implements InitializingBean {
 	}
 
 	public List<String> getCurrentServerIds(boolean nag, boolean lagged) {
-		long time = redisServerCommands.time();
+		long time = redisTemplate.execute(RedisConnection::time);
 
 		int nagTime = 0;
 

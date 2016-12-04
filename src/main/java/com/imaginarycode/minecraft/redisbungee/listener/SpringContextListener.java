@@ -37,9 +37,6 @@ public class SpringContextListener  implements Listener, InitializingBean {
 	@Autowired
 	private RedisBungee plugin;
 
-	@Autowired
-	private RedisServerCommands redisServerCommands;
-
 	@Resource(name = "redisTemplate")
 	private HashOperations<String, String, String> hashOperations;
 

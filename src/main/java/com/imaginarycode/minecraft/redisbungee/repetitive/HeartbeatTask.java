@@ -7,6 +7,7 @@ import javax.annotation.Resource;
 
 import org.springframework.beans.factory.InitializingBean;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.connection.RedisConnection;
 import org.springframework.data.redis.connection.RedisServerCommands;
 import org.springframework.data.redis.core.HashOperations;
 import org.springframework.stereotype.Component;
@@ -27,7 +28,7 @@ public class HeartbeatTask implements Runnable, InitializingBean {
 	private RedisBungee plugin;
 
 	@Autowired
-	private RedisServerCommands redisServerCommands;
+	private CustomRedisTemplate redisTemplate;
 
 	@Resource(name = "redisTemplate")
 	private HashOperations<String, String, String> hashOperations;
@@ -48,7 +49,7 @@ public class HeartbeatTask implements Runnable, InitializingBean {
 
 	@Override
 	public void run() {
-		long redisTime = redisServerCommands.time();
+		long redisTime = redisTemplate.execute(RedisConnection::time);
 		hashOperations.put("heartbeats", serverInformation.getServerName(), String.valueOf(redisTime));
 
 		try {
